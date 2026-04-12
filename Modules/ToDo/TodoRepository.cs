@@ -29,4 +29,16 @@ public class TodoRepository
         if (!File.Exists(_filePath))
             File.WriteAllText(_filePath, "[]");
     }
+
+    public List<TodoItem> LoadAll()
+    {
+        var json = File.ReadAllText(_filePath);
+        return JsonSerializer.Deserialize<List<TodoItem>>(json, JsonOptions) ?? [];
+    }
+
+    public void SaveAll(List<TodoItem> tasks)
+    {
+        var json = JsonSerializer.Serialize(tasks, JsonOptions);
+        File.WriteAllText(_filePath, json);
+    }
 }
