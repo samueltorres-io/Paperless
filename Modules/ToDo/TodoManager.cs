@@ -10,14 +10,16 @@ public class TodoManager : ITaskManager
     }
 
     /* Cria e persiste uma nova tarefa */
-    public TodoTask CreateTask(string title, string description, int priority)
+    public TodoTask CreateTask(string title, string? description = null, int? priority = null)
     {
         if (string.IsNullOrWhiteSpace(title))
             throw new ArgumentException("Title is required!");
 
-        //todo: Add validaçaõ de description por tamanho de texto e as validações de validade
-
-        var item = new TodoTask(title, description, priority);
+        var item = new TodoTask(
+            title,
+            string.IsNullOrWhiteSpace(description) ? " " : description,
+            priority ?? 1
+        );
 
         var tasks = _repository.LoadAll();
         tasks.Add(item);
