@@ -1,8 +1,8 @@
-/* Modules/ToDo/ToDoManager.cs */
+/* Modules/ToDo/TodoManager.cs */
 
-public class ToDoManager
+public class TodoManager
 {
 
-    
+
 
 }
