@@ -40,3 +40,6 @@ Ele le arquivos de uma pasta local, vetoriza o conteúdo para RAG, gerencia *TOD
 
 ---
 
+Paperless == release
+Ollama == Docker
+SQLLite == Docker
