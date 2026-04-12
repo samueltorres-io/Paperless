@@ -38,4 +38,9 @@ public class Task
         IsComplete = true;
     }
 
+    public void UpdatePriority(ushort priority)
+    { /* ushort -> 0:65535 2bytes */
+        Priority = priority;
+    }
+
 }
