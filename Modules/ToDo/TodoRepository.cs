@@ -1,10 +1,11 @@
-/* Modules/ToDo/TodoRepository.cs */
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Paperless.Modules.ToDo;
 
 public class TodoRepository
 {
-    private readonly string _filepath;
+    private readonly string _filePath;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -15,25 +16,25 @@ public class TodoRepository
 
     public TodoRepository(string filepath)
     {
-        _filepath = filepath;
+        _filePath = filepath;
         EnsureFileExists();
     }
 
     private void EnsureFileExists()
     {
-        var directory = Path.GetDirectoryName(_filepath);
+        var directory = Path.GetDirectoryName(_filePath);
 
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             Directory.CreateDirectory(directory);
         
-        if (!File.Exists(_filepath))
-            File.WriteAllText(_filepath, "[]");
+        if (!File.Exists(_filePath))
+            File.WriteAllText(_filePath, "[]");
     }
 
     /* Lê o JSON e transforma em List<TodoTask> */
     public List<TodoTask> LoadAll()
     {
-        var json = File.ReadAllText(_filepath);
+        var json = File.ReadAllText(_filePath);
         return JsonSerializer.Deserialize<List<TodoTask>>(json, JsonOptions) ?? [];
     }
 
@@ -41,6 +42,6 @@ public class TodoRepository
     public void SaveAll(List<TodoTask> tasks)
     {
         var json = JsonSerializer.Serialize(tasks, JsonOptions);
-        File.WriteAllText(_filepath, json);
+        File.WriteAllText(_filePath, json);
     }
 }
