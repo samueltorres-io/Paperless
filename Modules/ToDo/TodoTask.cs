@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -53,9 +54,15 @@ public class TodoTask
         IsComplete = true;
     }
 
-    public void UpdatePriority(ushort priority)
-    { /* ushort -> 0:65535 2bytes */
+    public void UpdatePriority(int priority)
+    {
+
+        if (priority < 1 || priority > 5)
+            throw new ArgumentOutOfRangeException(nameof(priority), "Priority must be 1-5!");
+
         Priority = priority;
     }
+
+    
 
 }
