@@ -1,4 +1,6 @@
-﻿using System;
+﻿/* Program.cs */
+
+using System;
 
 namespace Paperless
 {
