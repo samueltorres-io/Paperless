@@ -1,6 +1,6 @@
 /* Modules/ToDo/Task.cs */
 
-public class Task
+public class TodoTask
 {
     public string Title { get; private set; }
     public string Description { get; private set; }
@@ -8,7 +8,7 @@ public class Task
     public int Priority { get; private set; }
 
     /* Constructor */
-    public Task(string title, string description, int priority)
+    public TodoTask(string title, string description, int priority)
     {
         Title = title;
         Description = description;
