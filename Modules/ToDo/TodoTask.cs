@@ -1,15 +1,30 @@
-/* Modules/ToDo/Task.cs */
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Paperless.Modules.ToDo;
 
 public class TodoTask
 {
+    public string Id { get; private set; }
     public string Title { get; private set; }
     public string Description { get; private set; }
     public bool IsComplete { get; private set; }
     public int Priority { get; private set; }
 
     /* Constructor */
-    public TodoTask(string title, string description, int priority)
+    [JsonConstructor]
+    public TodoItem(string id, string title, string description, bool isComplete, int priority)
     {
+        Id = id;
+        Title = title;
+        Description = description;
+        IsComplete = isComplete;
+        Priority = priority;
+    }
+
+    public TodoItem(string title, string description, int priority)
+    {
+        Id = Guid.NewGuid().ToString("N")[..16];
         Title = title;
         Description = description;
         IsComplete = false;
