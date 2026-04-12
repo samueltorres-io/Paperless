@@ -26,14 +26,14 @@ public class TodoRepository
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             Directory.CreateDirectory(directory);
         
-        if (!File.Exists(_filePath))
-            File.WriteAllText(_filePath, "[]");
+        if (!File.Exists(_filepath))
+            File.WriteAllText(_filepath, "[]");
     }
 
     /* Lê o JSON e transforma em List<TodoTask> */
     public List<TodoTask> LoadAll()
     {
-        var json = File.ReadAllText(_filePath);
+        var json = File.ReadAllText(_filepath);
         return JsonSerializer.Deserialize<List<TodoTask>>(json, JsonOptions) ?? [];
     }
 
@@ -41,6 +41,6 @@ public class TodoRepository
     public void SaveAll(List<TodoTask> tasks)
     {
         var json = JsonSerializer.Serialize(tasks, JsonOptions);
-        File.WriteAllText(_filePath, json);
+        File.WriteAllText(_filepath, json);
     }
 }
