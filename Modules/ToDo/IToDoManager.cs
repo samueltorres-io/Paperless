@@ -1,6 +1,6 @@
-/* Modules/ToDo/IToDoManager.cs */
+/* Modules/ToDo/ITodoManager.cs */
 
-public interface TodoManager
+public interface ITodoManager
 {
     void CreateTask(string title, string description, int priority);
     // update
