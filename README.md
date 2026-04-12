@@ -19,3 +19,24 @@ Ele le arquivos de uma pasta local, vetoriza o conteúdo para RAG, gerencia *TOD
 
 ---
 
+## Arquitetura de Componentes
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    CLI REPL Loop                     │
+│              (input → process → output)              │
+├──────────┬──────────┬───────────────┬───────────────┤
+│  Chat    │  TODO    │  RAG Search   │  Session      │
+│  Service │  Manager │  Engine       │  Manager      │
+├──────────┴──────────┴───────┬───────┴───────────────┤
+│                             │                        │
+│      Ollama HTTP Client     │   Vector Store (SQLite) │
+│    /api/chat + /api/embed   │   embeddings + chunks   │
+├─────────────────────────────┴────────────────────────┤
+│              File Watcher + Indexer                   │
+│        (monitora pasta → chunka → vetoriza)           │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
