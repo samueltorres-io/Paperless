@@ -14,7 +14,7 @@ public class TodoTask
 
     /* Constructor */
     [JsonConstructor]
-    public TodoItem(string id, string title, string description, bool isComplete, int priority)
+    public TodoTask(string id, string title, string description, bool isComplete, int priority)
     {
         Id = id;
         Title = title;
@@ -23,7 +23,7 @@ public class TodoTask
         Priority = priority;
     }
 
-    public TodoItem(string title, string description, int priority)
+    public TodoTask(string title, string description, int priority)
     {
         Id = Guid.NewGuid().ToString("N")[..16];
         Title = title;
