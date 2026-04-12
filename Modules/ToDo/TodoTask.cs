@@ -63,6 +63,19 @@ public class TodoTask
         Priority = priority;
     }
 
-    
+    public override string ToString()
+    {
+        var status = IsComplete ? "✓" : "○";
+        var priorityLabel = Priority switch
+        {
+            1 => "low",
+            2 => "medium",
+            3 => "high",
+            4 => "urgent",
+            5 => "critical",
+            _ => "unknown"
+        };
 
+        return $" [{status}] {Id} {Title} (priority: {priorityLabel})";
+    }
 }
