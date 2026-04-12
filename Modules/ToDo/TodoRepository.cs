@@ -30,13 +30,15 @@ public class TodoRepository
             File.WriteAllText(_filePath, "[]");
     }
 
-    public List<TodoItem> LoadAll()
+    /* Lê o JSON e transforma em List<TodoTask> */
+    public List<TodoTask> LoadAll()
     {
         var json = File.ReadAllText(_filePath);
-        return JsonSerializer.Deserialize<List<TodoItem>>(json, JsonOptions) ?? [];
+        return JsonSerializer.Deserialize<List<TodoTask>>(json, JsonOptions) ?? [];
     }
 
-    public void SaveAll(List<TodoItem> tasks)
+    /* Transforam a lista em JSON e salva em arquivo */
+    public void SaveAll(List<TodoTask> tasks)
     {
         var json = JsonSerializer.Serialize(tasks, JsonOptions);
         File.WriteAllText(_filePath, json);
