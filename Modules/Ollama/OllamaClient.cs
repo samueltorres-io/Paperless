@@ -1,12 +1,17 @@
 using System;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
+using System.Text;
+using System.Text.Json;
 
 namespace Paperless.Modules.Ollama;
 
 public sealed class OllamaClient
 {
     private readonly HttpClient _http;
+
+    private readonly OllamaOptions _options;
 
     public OllamaClient(string baseUrl = "http://localhost:11434")
     {
@@ -33,4 +38,7 @@ public sealed class OllamaClient
             return false;
         }
     }
+
+    public Task<string> ChatAsync(IEnumerable<ChatMessage> messages);
+    public Task<float[]> EmbedAsync(string text);
 }
