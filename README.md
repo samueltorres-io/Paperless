@@ -98,3 +98,29 @@ Ele le arquivos de uma pasta local, vetoriza o conteúdo para RAG, gerencia *TOD
  
 ---
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+2. Pipeline RAG - TextChunker → CosineSimilarity → VectorStore → FileIndexer.
+
+
+3. ChatService + SessionManager — orquestra RAG + LLM + histórico de sessão via cache.
