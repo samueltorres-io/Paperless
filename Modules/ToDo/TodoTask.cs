@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Paperless.Modules.ToDo;
@@ -12,7 +11,6 @@ public class TodoTask
     public bool IsComplete { get; private set; }
     public int Priority { get; private set; }
 
-    /* Constructor */
     [JsonConstructor]
     public TodoTask(string id, string title, string description, bool isComplete, int priority)
     {
@@ -25,7 +23,7 @@ public class TodoTask
 
     public TodoTask(string title, string description, int priority)
     {
-        Id = Guid.NewGuid().ToString("N")[..6];
+        Id = Guid.NewGuid().ToString("N")[..8];
         Title = title;
         Description = description;
         IsComplete = false;
@@ -56,7 +54,6 @@ public class TodoTask
 
     public void UpdatePriority(int priority)
     {
-
         if (priority < 1 || priority > 5)
             throw new ArgumentOutOfRangeException(nameof(priority), "Priority must be 1-5!");
 
