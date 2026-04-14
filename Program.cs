@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Paperless.Modules.Ollama;
 
@@ -27,10 +28,21 @@ internal class Program
         }
 
         // 4. Chat
-        var resposta = await ollama.ChatAsync([
-            ChatMessage.System("Você é um assistente local."),
-            ChatMessage.User("Olá, tudo bem?"),
-        ]);
+        try
+        {
+            var resposta = await ollama.ChatAsync(
+                [
+                    ChatMessage.System("Você é um assistente local."),
+                    ChatMessage.User(Console.ReadLine()),
+                ],
+                CancellationToken.None);
+
+            Console.WriteLine(resposta);
+        }
+        catch (TimeoutException ex)
+        {
+            Console.WriteLine($"Timeout falando com o modelo: {ex.Message}");
+        }
 
         // 5. Embedding (para o RAG depois)
         float[] vetor = await ollama.EmbedAsync("texto para vetorizar");
