@@ -1,2 +1,3 @@
 [] Migrar para SQLite-vss
 [] Adicionar skill no appsettings.json para ser o prompt básico do modelo!
+[] Adicionar um icone de 'gerando resposta', 'analisando pergunta', 'planejando' -> Durante a request e response.
