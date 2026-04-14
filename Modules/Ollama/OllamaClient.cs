@@ -11,7 +11,7 @@ public sealed class OllamaClient
 {
     private readonly HttpClient _http;
     private readonly OllamaOptions _options;
-    
+
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -28,11 +28,12 @@ public sealed class OllamaClient
         };
     }
 
+    /* Ollama Helth Check */
     public async Task<bool> HealthCheckAsync()
     {
         try
         {
-            using var response = await _http.GetAsync("/");
+            using var response = await _http.GetAsync("");
             return response.IsSuccessStatusCode;
         }
         catch (HttpRequestException)
