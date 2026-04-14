@@ -1,39 +1,43 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Paperless.Modules.Ollama;
 
 internal class Program
 {
     static async Task Main(string[] args)
     {
-        
-        // 1. Carregar options do appsettings.json (ou direto)
-        var options = new OllamaOptions
-        {
-            BaseUrl = "http://localhost:11434",
-            Model = "phi3:mini",
-            EmbeddingModel = "nomic-embed-text",
-            TimeoutSeconds = 120,
-        };
+        IConfiguration configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json",
+                optional: false,
+                reloadOnChange: false)
+            .Build();
 
-        // 2. Criar o cliente
+        var options = configuration.GetSection("Ollama").Get<OllamaOptions>();
+        if (options is null)
+        {
+            Console.WriteLine("Section 'Ollama' not found in appsettings.json!");
+            return;
+        }
+
         var ollama = new OllamaClient(options);
 
-        // 3. Health check
         if (!await ollama.HealthCheckAsync())
         {
             Console.WriteLine("Ollama não está rodando! Execute 'ollama serve'.");
             return;
         }
 
-        // 4. Chat
+        string skill = configuration["Skill"] ?? "Você é um assistente local.";
+
         try
         {
             var resposta = await ollama.ChatAsync(
                 [
-                    ChatMessage.System("Você é um assistente local."),
-                    ChatMessage.User(Console.ReadLine()),
+                    ChatMessage.System(skill),
+                    ChatMessage.User(Console.ReadLine()!),
                 ],
                 CancellationToken.None);
 
@@ -44,8 +48,6 @@ internal class Program
             Console.WriteLine($"Timeout falando com o modelo: {ex.Message}");
         }
 
-        // 5. Embedding (para o RAG depois)
         float[] vetor = await ollama.EmbedAsync("texto para vetorizar");
-
     }
 }
