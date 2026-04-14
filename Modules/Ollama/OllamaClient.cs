@@ -10,18 +10,21 @@ namespace Paperless.Modules.Ollama;
 public sealed class OllamaClient
 {
     private readonly HttpClient _http;
-
     private readonly OllamaOptions _options;
-
-    public OllamaClient(string? baseUrl = null)
+    
+    private static readonly JsonSerializerOptions _jsonOptions = new()
     {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false,
+    };
 
-        baseUrl = baseUrl ?? _options.BaseUrl;
-
+    public OllamaClient(OllamaOptions options)
+    {
+        _options = options;
         _http = new HttpClient
         {
-            BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
-            Timeout = TimeSpan.FromSeconds(5),
+            BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/"),
+            Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds),
         };
     }
 
