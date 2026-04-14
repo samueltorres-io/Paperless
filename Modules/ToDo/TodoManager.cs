@@ -17,7 +17,7 @@ public class TodoManager : ITaskManager
 
         var item = new TodoTask(
             title,
-            string.IsNullOrWhiteSpace(description) ? " " : description,
+            description ?? string.Empty,
             priority ?? 1
         );
 
@@ -59,6 +59,31 @@ public class TodoManager : ITaskManager
         return task;
     }
 
+    /* Atualiza campos da tarefa pelo ID */
+    public TodoTask? UpdateTask(string id, string? title = null, string? description = null, int? priority = null)
+    {
+        var tasks = _repository.LoadAll();
+
+        var task = tasks.FirstOrDefault(t =>
+            t.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+
+        if (task is null)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(title))
+            task.UpdateTitle(title);
+
+        if (!string.IsNullOrWhiteSpace(description))
+            task.UpdateDescription(description);
+
+        if (priority.HasValue)
+            task.UpdatePriority(priority.Value);
+
+        _repository.SaveAll(tasks);
+
+        return task;
+    }
+
     /* Remove tarefa pelo ID */
     public bool DeleteTask(string id)
     {
@@ -82,5 +107,4 @@ public class TodoManager : ITaskManager
         return tasks.FirstOrDefault(t =>
             t.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
     }
-
 }
