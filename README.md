@@ -74,3 +74,27 @@ Ele le arquivos de uma pasta local, vetoriza o conteúdo para RAG, gerencia *TOD
 
 ---
 
+## Ollama Module
+
+**Responsabilidade:** Comunicação HTTP com o Ollama local.
+
+> Nas releases, configuramos uma instalação automática do ollama se não existir no sistema e realizamos o pull do modelo llm
+
+**Endpoints usados:**
+- `POST http://localhost:11434/api/chat` — gerar respostas
+- `POST http://localhost:11434/api/embeddings` — gerar vetores
+ 
+**Fluxo:**
+```
+[User Input] → OllamaClient.ChatAsync(messages[]) → resposta string
+[Texto]      → OllamaClient.EmbedAsync(text) → float[] (vetor)
+```
+ 
+**Detalhes técnicos:**
+- Usar `HttpClient` singleton (reusar conexão)
+- Chat: enviar `{ model, messages, stream: false }` — sem streaming para simplificar
+- Embed: enviar `{ model: "nomic-embed-text", prompt: text }` → retorna `embedding: float[]`
+- Timeout de 120s (modelos pequenos podem demorar no primeiro load)
+ 
+---
+
