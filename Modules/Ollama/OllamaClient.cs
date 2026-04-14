@@ -8,6 +8,7 @@ using System.Text.Json;
 using Paperless.Modules.Ollama.Dto;
 using System.Text;
 using System.Net;
+using System.Threading;
 
 namespace Paperless.Modules.Ollama;
 
@@ -28,16 +29,17 @@ public sealed class OllamaClient
         _http = new HttpClient
         {
             BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/"),
-            Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds),
+            Timeout = Timeout.InfiniteTimeSpan,
         };
     }
 
     /* Ollama Helth Check */
-    public async Task<bool> HealthCheckAsync()
+    public async Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            using var response = await _http.GetAsync("");
+            using var cts = CreateTimeoutCts(_options.TimeoutSeconds, cancellationToken);
+            using var response = await _http.GetAsync("", cts.Token);
             return response.IsSuccessStatusCode;
         }
         catch (HttpRequestException)
@@ -51,7 +53,9 @@ public sealed class OllamaClient
     }
 
     /* Chat -> Envia msm e recebe respost do modelo (sem streaming) */
-    public async Task<string> ChatAsync(IEnumerable<ChatMessage> messages)
+    public async Task<string> ChatAsync(
+        IEnumerable<ChatMessage> messages,
+        CancellationToken cancellationToken = default)
     {
         var request = new OllamaChatRequest
         {
@@ -60,11 +64,11 @@ public sealed class OllamaClient
             Stream = false,
         };
 
-        using var httpResponse = await PostJsonAsync("api/chat", request);
+        using var httpResponse = await PostJsonAsync("api/chat", request, _options.TimeoutSeconds, cancellationToken);
 
         await EnsureSuccessOrThrowAsync(httpResponse, "api/chat");
 
-        var result = await httpResponse.Content.ReadFromJsonAsync<OllamaChatResponse>(_jsonOptions);
+        var result = await httpResponse.Content.ReadFromJsonAsync<OllamaChatResponse>(_jsonOptions, cancellationToken);
 
         if (result is null || string.IsNullOrWhiteSpace(result.Message.Content))
             throw new InvalidOperationException("Ollama return the empty response!");
@@ -73,7 +77,7 @@ public sealed class OllamaClient
     }
 
     /* Embed -> Gera vetor de embedding para um texto */
-    public async Task<float[]> EmbedAsync(string text)
+    public async Task<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
             throw new ArgumentException("Embedding text cannot be empty!", nameof(text));
@@ -84,11 +88,11 @@ public sealed class OllamaClient
             Prompt = text,
         };
 
-        using var httpResponse = await PostJsonAsync("api/embeddings", request);
+        using var httpResponse = await PostJsonAsync("api/embeddings", request, _options.TimeoutSeconds, cancellationToken);
 
         await EnsureSuccessOrThrowAsync(httpResponse, "api/embeddings");
 
-        var result = await httpResponse.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(_jsonOptions);
+        var result = await httpResponse.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(_jsonOptions, cancellationToken);
 
         if (result is null || result.Embedding.Length == 0)
             throw new InvalidOperationException("Ollama return the empty embedding!");
@@ -97,14 +101,19 @@ public sealed class OllamaClient
     }
 
     /* Helpers */
-    private async Task<HttpResponseMessage> PostJsonAsync<T>(string endpoint, T payload)
+    private async Task<HttpResponseMessage> PostJsonAsync<T>(
+        string endpoint,
+        T payload,
+        int timeoutSeconds,
+        CancellationToken cancellationToken)
     {
         var json = JsonSerializer.Serialize(payload, _jsonOptions);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         try
         {
-            return await _http.PostAsync(endpoint, content);
+            using var cts = CreateTimeoutCts(timeoutSeconds, cancellationToken);
+            return await _http.PostAsync(endpoint, content, cts.Token);
         }
         catch (HttpRequestException ex)
         {
@@ -112,11 +121,11 @@ public sealed class OllamaClient
                 $"Could not connect to Ollama at {_options.BaseUrl}. " +
                 "Check that the service is running ('ollama serve').", ex);
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             throw new TimeoutException(
-                $"Ollama did not respond within {_options.TimeoutSeconds}s. " +
-                "The model may be loading for the first time.", ex);
+                $"Ollama did not respond within {timeoutSeconds}s (timeout). " +
+                "This may happen while the model is loading or if it's too slow for the current hardware.", ex);
         }
     }
 
@@ -135,5 +144,15 @@ public sealed class OllamaClient
         throw new InvalidOperationException(
             $"Ollama request to '{endpoint}' failed with HTTP {(int)response.StatusCode} ({response.StatusCode}). " +
             $"Details: {details}");
+    }
+
+    private static CancellationTokenSource CreateTimeoutCts(int timeoutSeconds, CancellationToken cancellationToken)
+    {
+        if (timeoutSeconds <= 0)
+            return CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+        return cts;
     }
 }
