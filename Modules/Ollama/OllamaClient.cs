@@ -6,6 +6,8 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using System.Text.Json;
 using Paperless.Modules.Ollama.Dto;
+using System.Text;
+using System.Net;
 
 namespace Paperless.Modules.Ollama;
 
@@ -95,8 +97,26 @@ public sealed class OllamaClient
     }
 
     /* Helpers */
-    private Task<HttpResponseMessage> PostJsonAsync<T>(string relativePath, T payload)
+    private async Task<HttpResponseMessage> PostJsonAsync<T>(string endpoint, T payload)
     {
-        return _http.PostAsJsonAsync(relativePath, payload, _jsonOptions);
+        var json = JsonSerializer.Serialize(payload, _jsonOptions);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        try
+        {
+            return await _http.PostAsync(endpoint, content);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new InvalidOperationException(
+                $"Could not connect to Ollama at {_options.BaseUrl}. " +
+                "Check that the service is running ('ollama serve').", ex);
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            throw new TimeoutException(
+                $"Ollama did not respond within {_options.TimeoutSeconds}s. " +
+                "The model may be loading for the first time.", ex);
+        }
     }
 }
