@@ -70,8 +70,29 @@ public sealed class OllamaClient
         return result.Message.Content.Trim();
     }
 
-    // `POST http://localhost:11434/api/embeddings` — gerar vetores
-    public Task<float[]> EmbedAsync(string text);
+    /* Embed -> Gera vetor de embedding para um texto */
+    public async Task<float[]> EmbedAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            throw new ArgumentException("Embedding text cannot be empty!", nameof(text));
+
+        var request = new OllamaEmbeddingRequest
+        {
+            Model = _options.EmbeddingModel,
+            Prompt = text,
+        };
+
+        using var httpResponse = await PostJsonAsync("api/embeddings", request);
+
+        httpResponse.EnsureSuccessStatusCode();
+
+        var result = await httpResponse.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(_jsonOptions);
+
+        if (result is null || result.Embedding.Length == 0)
+            throw new InvalidOperationException("Ollama return the empty embedding!");
+
+        return result.Embedding;
+    }
 
     /* Helpers */
     private Task<HttpResponseMessage> PostJsonAsync<T>(string relativePath, T payload)
