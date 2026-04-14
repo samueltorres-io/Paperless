@@ -1,21 +1,28 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Paperless.Modules.Ollama;
 
 internal class Program
 {
     static async Task Main(string[] args)
     {
+
+        IConfiguration configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json",
+                optional: false,
+                reloadOnChange: true)
+            .Build();
         
-        // 1. Carregar options do appsettings.json (ou direto)
-        var options = new OllamaOptions
+        
+        var options = configuration.GetSection("Ollama").Get<OllamaOptions>();
+        if (options is null)
         {
-            BaseUrl = "http://localhost:11434",
-            Model = "phi3:mini",
-            EmbeddingModel = "nomic-embed-text",
-            TimeoutSeconds = 120,
-        };
+            Console.WriteLine("Section 'Ollama' not found into appsettings.json file!");
+            return;
+        }
 
         // 2. Criar o cliente
         var ollama = new OllamaClient(options);
