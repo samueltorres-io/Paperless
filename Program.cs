@@ -1,102 +1,51 @@
 ﻿using System;
-using Paperless.Modules.ToDo;
+using System.Threading;
+using System.Threading.Tasks;
+using Paperless.Modules.Ollama;
 
 internal class Program
 {
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
-        Console.WriteLine("=== Paperless — Testes do módulo ToDo ===\n");
+        
+        // 1. Carregar options do appsettings.json (ou direto)
+        var options = new OllamaOptions
+        {
+            BaseUrl = "http://localhost:11434",
+            Model = "phi3:mini",
+            EmbeddingModel = "nomic-embed-text",
+            TimeoutSeconds = 120,
+        };
 
-        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var tasksPath = Path.Combine(homeDir, "Paperless", "tasks.json");
+        // 2. Criar o cliente
+        var ollama = new OllamaClient(options);
 
-        Console.WriteLine($"Arquivo de tarefas: {tasksPath}\n");
+        // 3. Health check
+        if (!await ollama.HealthCheckAsync())
+        {
+            Console.WriteLine("Ollama não está rodando! Execute 'ollama serve'.");
+            return;
+        }
 
-        var repository = new TodoRepository(tasksPath);
-        var manager = new TodoManager(repository);
-
-        Console.WriteLine("--- TESTE 1: Criar tarefas ---");
-
-        var task1 = manager.CreateTask("Estudar C#", "Aprender System.Text.Json", 3);
-        Console.WriteLine($"Criada: {task1}");
-
-        var task2 = manager.CreateTask("Configurar Ollama", "Instalar phi3:mini", 4);
-        Console.WriteLine($"Criada: {task2}");
-
-        var task3 = manager.CreateTask("Comprar café", "Café especial pro escritório", 1);
-        Console.WriteLine($"Criada: {task3}");
-
-        Console.WriteLine();
-
-        Console.WriteLine("--- TESTE 2: Listar todas ---");
-
-        var allTasks = manager.ListTasks();
-        foreach (var t in allTasks)
-            Console.WriteLine(t);
-
-        Console.WriteLine();
-
-        Console.WriteLine("--- TESTE 3: Filtrar por prioridade 4 (urgent) ---");
-
-        var urgentes = manager.ListTasks(priorityFilter: 4);
-        foreach (var t in urgentes)
-            Console.WriteLine(t);
-
-        Console.WriteLine();
-
-        Console.WriteLine("--- TESTE 4: Buscar por ID ---");
-
-        var found = manager.GetTask(task1.Id);
-        Console.WriteLine($"Buscando {task1.Id}: {found?.ToString() ?? "Não encontrada!"}");
-
-        var notFound = manager.GetTask("id_invalido");
-        Console.WriteLine($"Buscando id_invalido: {notFound?.ToString() ?? "Não encontrada!"}");
-
-        Console.WriteLine();
-
-        Console.WriteLine("--- TESTE 5: Completar tarefa ---");
-
-        var completed = manager.CompleteTask(task1.Id);
-        Console.WriteLine($"Completada: {completed}");
-
-        var check = manager.GetTask(task1.Id);
-        Console.WriteLine($"Verificação: IsComplete = {check?.IsComplete}");
-
-        Console.WriteLine();
-
-        Console.WriteLine("--- TESTE 6: Deletar tarefa ---");
-
-        bool deleted = manager.DeleteTask(task3.Id);
-        Console.WriteLine($"Deletou '{task3.Title}': {deleted}");
-
-        bool deletedAgain = manager.DeleteTask(task3.Id);
-        Console.WriteLine($"Deletou de novo (mesmo ID): {deletedAgain}");
-
-        Console.WriteLine();
-
-        Console.WriteLine("--- TESTE 7: Estado final ---");
-
-        var finalTasks = manager.ListTasks();
-        Console.WriteLine($"Total de tarefas: {finalTasks.Count}");
-        foreach (var t in finalTasks)
-            Console.WriteLine(t);
-
-        Console.WriteLine();
-
-        Console.WriteLine("--- TESTE 8: Validação de título vazio ---");
-
+        // 4. Chat
         try
         {
-            manager.CreateTask("", "Descrição qualquer", 2);
-            Console.WriteLine("FALHOU — deveria ter lançado exceção!");
+            var resposta = await ollama.ChatAsync(
+                [
+                    ChatMessage.System("Você é um assistente local."),
+                    ChatMessage.User(Console.ReadLine()),
+                ],
+                CancellationToken.None);
+
+            Console.WriteLine(resposta);
         }
-        catch (ArgumentException ex)
+        catch (TimeoutException ex)
         {
-            Console.WriteLine($"OK — Exceção capturada: {ex.Message}");
+            Console.WriteLine($"Timeout falando com o modelo: {ex.Message}");
         }
 
-        Console.WriteLine();
+        // 5. Embedding (para o RAG depois)
+        float[] vetor = await ollama.EmbedAsync("texto para vetorizar");
 
-        Console.WriteLine("=== Todos os testes concluídos! ===");
     }
 }

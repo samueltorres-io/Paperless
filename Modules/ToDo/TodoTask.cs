@@ -25,7 +25,7 @@ public class TodoTask
 
     public TodoTask(string title, string description, int priority)
     {
-        Id = Guid.NewGuid().ToString("N")[..16];
+        Id = Guid.NewGuid().ToString("N")[..6];
         Title = title;
         Description = description;
         IsComplete = false;

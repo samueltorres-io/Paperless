@@ -40,3 +40,37 @@ Ele le arquivos de uma pasta local, vetoriza o conteúdo para RAG, gerencia *TOD
 
 ---
 
+## ToDO Module
+
+**Responsabilidade:** CRUD de tarefas em arquivo JSON.
+ 
+**Localização:** `...`
+ 
+**Modelo:**
+```json
+[
+  {
+    "id": "a1b2c3",
+    "title": "Revisar PR do backend",
+    "text": "Desenvolver os testes unitários para o módulo de RAG",
+    "criticidade": "alta"
+  }
+]
+```
+
+**Comandos CLI:**
+```
+/todo add "título" "descrição" 1/2/3/4/5
+/todo list ?(1/2/3/4/5)
+/todo done <id>
+/todo remove <id>
+```
+ 
+**Detalhes:**
+- `id` → primeiros 6 chars de `Guid.NewGuid()`
+- Salvar com `System.Text.Json` formatado (indented)
+- O `todos.json` **TAMBÉM** é indexado pelo RAG (é um arquivo na pasta!)
+- Então quando o user perguntar "quais minhas tarefas?", o RAG já puxa.
+
+---
+
