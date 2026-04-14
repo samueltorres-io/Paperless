@@ -24,23 +24,22 @@ internal class Program
             return;
         }
 
-        // 2. Criar o cliente
         var ollama = new OllamaClient(options);
 
-        // 3. Health check
         if (!await ollama.HealthCheckAsync())
         {
             Console.WriteLine("Ollama não está rodando! Execute 'ollama serve'.");
             return;
         }
 
-        // 4. Chat
+        string skill = configuration["Skill"] ?? "Você é um assistente local.";
+
         try
         {
             var resposta = await ollama.ChatAsync(
                 [
-                    ChatMessage.System("Você é um assistente local."),
-                    ChatMessage.User(Console.ReadLine()),
+                    ChatMessage.System(skill),
+                    ChatMessage.User(Console.ReadLine()!),
                 ],
                 CancellationToken.None);
 
@@ -51,7 +50,6 @@ internal class Program
             Console.WriteLine($"Timeout falando com o modelo: {ex.Message}");
         }
 
-        // 5. Embedding (para o RAG depois)
         float[] vetor = await ollama.EmbedAsync("texto para vetorizar");
 
     }
