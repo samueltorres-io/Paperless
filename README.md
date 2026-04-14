@@ -71,3 +71,6 @@ Ele le arquivos de uma pasta local, vetoriza o conteúdo para RAG, gerencia *TOD
 - Salvar com `System.Text.Json` formatado (indented)
 - O `todos.json` **TAMBÉM** é indexado pelo RAG (é um arquivo na pasta!)
 - Então quando o user perguntar "quais minhas tarefas?", o RAG já puxa.
+
+---
+
