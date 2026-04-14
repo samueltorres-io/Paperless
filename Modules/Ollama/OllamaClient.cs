@@ -1,8 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using System.Text;
 using System.Text.Json;
 using Paperless.Modules.Ollama.Dto;
 
@@ -71,4 +72,10 @@ public sealed class OllamaClient
 
     // `POST http://localhost:11434/api/embeddings` — gerar vetores
     public Task<float[]> EmbedAsync(string text);
+
+    /* Helpers */
+    private Task<HttpResponseMessage> PostJsonAsync<T>(string relativePath, T payload)
+    {
+        return _http.PostAsJsonAsync(relativePath, payload, _jsonOptions);
+    }
 }
