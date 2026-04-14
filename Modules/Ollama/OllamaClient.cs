@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using System.Text;
 using System.Text.Json;
+using Paperless.Modules.Ollama.Dto;
 
 namespace Paperless.Modules.Ollama;
 
@@ -46,8 +47,27 @@ public sealed class OllamaClient
         }
     }
 
-    // `POST http://localhost:11434/api/chat` — gerar respostas
-    public Task<string> ChatAsync(IEnumerable<ChatMessage> messages);
+    /* Chat -> Envia msm e recebe respost do modelo (sem streaming) */
+    public async Task<string> ChatAsync(IEnumerable<ChatMessage> messages)
+    {
+        var request = new OllamaChatRequest
+        {
+            Model = _options.Model,
+            Messages = messages.ToList(),
+            Stream = false,
+        };
+
+        using var httpResponse = await PostJsonAsync("api/chat", request);
+
+        httpResponse.EnsureSuccessStatusCode();
+
+        var result = await httpResponse.Content.ReadFromJsonAsync<OllamaChatResponse>(_jsonOptions);
+
+        if (result is null || string.IsNullOrWhiteSpace(result.Message.Content))
+            throw new InvalidOperationException("Ollama return the empty response!");
+
+        return result.Message.Content.Trim();
+    }
 
     // `POST http://localhost:11434/api/embeddings` — gerar vetores
     public Task<float[]> EmbedAsync(string text);
