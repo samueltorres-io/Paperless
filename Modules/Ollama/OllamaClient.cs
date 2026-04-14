@@ -13,8 +13,11 @@ public sealed class OllamaClient
 
     private readonly OllamaOptions _options;
 
-    public OllamaClient(string baseUrl = "http://localhost:11434")
+    public OllamaClient(string? baseUrl = null)
     {
+
+        baseUrl = baseUrl ?? _options.BaseUrl;
+
         _http = new HttpClient
         {
             BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
@@ -39,6 +42,9 @@ public sealed class OllamaClient
         }
     }
 
+    // `POST http://localhost:11434/api/chat` — gerar respostas
     public Task<string> ChatAsync(IEnumerable<ChatMessage> messages);
+
+    // `POST http://localhost:11434/api/embeddings` — gerar vetores
     public Task<float[]> EmbedAsync(string text);
 }
