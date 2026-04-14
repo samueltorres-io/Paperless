@@ -8,19 +8,17 @@ internal class Program
 {
     static async Task Main(string[] args)
     {
-
         IConfiguration configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json",
                 optional: false,
-                reloadOnChange: true)
+                reloadOnChange: false)
             .Build();
-        
-        
+
         var options = configuration.GetSection("Ollama").Get<OllamaOptions>();
         if (options is null)
         {
-            Console.WriteLine("Section 'Ollama' not found into appsettings.json file!");
+            Console.WriteLine("Section 'Ollama' not found in appsettings.json!");
             return;
         }
 
@@ -51,6 +49,5 @@ internal class Program
         }
 
         float[] vetor = await ollama.EmbedAsync("texto para vetorizar");
-
     }
 }
