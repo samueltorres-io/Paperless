@@ -124,3 +124,8 @@ Ele le arquivos de uma pasta local, vetoriza o conteúdo para RAG, gerencia *TOD
 
 
 3. ChatService + SessionManager — orquestra RAG + LLM + histórico de sessão via cache.
+
+Ideia base:
+{
+  Eu estou anotando as minhas tarefas e projetos(rascunhos) em folhas de papel! Mas gostaria de ter uma llm leve e local, no meu notebook i7-12 16gb, para em auxiliar! Seria uma llm que não se conecta a internet e tem acesso a apenas uma pasta em específico, onde lá, deixo armazenado, algumas ideas, arquivos e projetos! Ela seria de grande ajuda, pois dentro dessa pasta, eu teria um .json com as tarefas que eu devo fazer! Essa llm poderia verificar os meus projetos, arquivos e até essa minha ToDo, para me ajudar e tirar algumas dúvidas, apenas! Ela não mexeria nos arquivos, apenas iria lê-los para obter informações, de forma simples e teria um cache de sessão em memória, com um ttl de 10 minutos, caso não houvesse interação!
+}
