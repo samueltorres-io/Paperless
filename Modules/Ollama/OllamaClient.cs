@@ -62,7 +62,7 @@ public sealed class OllamaClient
 
         using var httpResponse = await PostJsonAsync("api/chat", request);
 
-        httpResponse.EnsureSuccessStatusCode();
+        await EnsureSuccessOrThrowAsync(httpResponse, "api/chat");
 
         var result = await httpResponse.Content.ReadFromJsonAsync<OllamaChatResponse>(_jsonOptions);
 
@@ -86,7 +86,7 @@ public sealed class OllamaClient
 
         using var httpResponse = await PostJsonAsync("api/embeddings", request);
 
-        httpResponse.EnsureSuccessStatusCode();
+        await EnsureSuccessOrThrowAsync(httpResponse, "api/embeddings");
 
         var result = await httpResponse.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(_jsonOptions);
 
@@ -118,5 +118,22 @@ public sealed class OllamaClient
                 $"Ollama did not respond within {_options.TimeoutSeconds}s. " +
                 "The model may be loading for the first time.", ex);
         }
+    }
+
+    private static async Task EnsureSuccessOrThrowAsync(HttpResponseMessage response, string endpoint)
+    {
+        if (response.IsSuccessStatusCode) return;
+
+        string? body = null;
+        try
+        {
+            body = await response.Content.ReadAsStringAsync();
+        }
+        catch { /* ignore */ }
+
+        var details = string.IsNullOrWhiteSpace(body) ? response.ReasonPhrase : body.Trim();
+        throw new InvalidOperationException(
+            $"Ollama request to '{endpoint}' failed with HTTP {(int)response.StatusCode} ({response.StatusCode}). " +
+            $"Details: {details}");
     }
 }
