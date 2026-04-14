@@ -7,14 +7,16 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Paperless.Configuration;
 using Paperless.Modules.Ollama.Dto;
 
 namespace Paperless.Modules.Ollama;
 
-public sealed class OllamaClient
+public sealed class OllamaClient : IDisposable
 {
     private readonly HttpClient _http;
     private readonly OllamaOptions _options;
+    private bool _disposed;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -32,7 +34,7 @@ public sealed class OllamaClient
         };
     }
 
-    /* Ollama Helth Check */
+    /* Health Check — verifica se o Ollama está respondendo */
     public async Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -51,7 +53,7 @@ public sealed class OllamaClient
         }
     }
 
-    /* Chat -> Envia msm e recebe respost do modelo (sem streaming) */
+    /* Chat — Envia mensagem e recebe resposta do modelo (sem streaming) */
     public async Task<string> ChatAsync(
         IEnumerable<ChatMessage> messages,
         CancellationToken cancellationToken = default)
@@ -77,7 +79,7 @@ public sealed class OllamaClient
         return result.Message.Content.Trim();
     }
 
-    /* Embed -> Gera vetor de embedding para um texto */
+    /* Embed — Gera vetor de embedding para um texto */
     public async Task<float[]> EmbedAsync(
         string text,
         CancellationToken cancellationToken = default)
@@ -128,7 +130,7 @@ public sealed class OllamaClient
         {
             throw new TimeoutException(
                 $"Ollama did not respond within {_options.TimeoutSeconds}s (timeout). " +
-                "This may happen while the model is loading or if it's too slow for the current hardware.", ex);
+                "This may happen while the model is loading.", ex);
         }
     }
 
@@ -163,5 +165,14 @@ public sealed class OllamaClient
             cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
         return cts;
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _http.Dispose();
+            _disposed = true;
+        }
     }
 }
