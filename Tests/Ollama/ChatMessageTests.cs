@@ -51,11 +51,13 @@ public class ChatMessageTests
     }
 
     [Fact]
-    public void Properties_ShouldBeMutable()
+    public void Properties_ShouldBeSettableViaObjectInitializer()
     {
-        var msg = new ChatMessage();
-        msg.Role = "user";
-        msg.Content = "teste";
+        var msg = new ChatMessage
+        {
+            Role = "user",
+            Content = "teste",
+        };
 
         Assert.Equal("user", msg.Role);
         Assert.Equal("teste", msg.Content);
