@@ -29,7 +29,8 @@ internal class Program
 
         /* ══════════════ 3. Inicializar serviços ══════════════ */
 
-        using var ollama = new OllamaClient(settings.Ollama);
+        using var ollamaHttp = new System.Net.Http.HttpClient();
+        var ollama = new OllamaClient(ollamaHttp, settings.Ollama);
 
         var ragModel = new FileRagModel(settings.Storage.GetFullDatabasePath());
         var todoRepo = new TodoRepository(settings.Storage.GetFullTasksPath());
