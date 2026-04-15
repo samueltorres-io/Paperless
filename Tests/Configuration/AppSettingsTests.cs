@@ -34,15 +34,15 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void StorageSettings_DefaultTasksFilePath_ShouldBeTasksJson()
+    public void StorageSettings_DefaultTasksFilePath_ShouldBeSystemTasksJson()
     {
         var storage = new StorageSettings();
 
-        Assert.Equal("tasks.json", storage.TasksFilePath);
+        Assert.Equal("system/tasks.json", storage.TasksFilePath);
     }
 
     [Fact]
-    public void GetFullTasksPath_ShouldCombineBaseFolderAndTasksFile()
+    public void GetFullTasksPath_ShouldCombineUserProfileBaseFolderAndTasksFile()
     {
         var storage = new StorageSettings
         {
@@ -52,7 +52,9 @@ public class AppSettingsTests
 
         var path = storage.GetFullTasksPath();
 
-        Assert.Equal(Path.Combine("MyFolder", "system/tasks.json"), path);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var expected = Path.Combine(home, "MyFolder", "system/tasks.json");
+        Assert.Equal(expected, path);
     }
 
     [Fact]
@@ -62,7 +64,9 @@ public class AppSettingsTests
 
         var path = storage.GetFullTasksPath();
 
-        Assert.Equal(Path.Combine("Paperless", "tasks.json"), path);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var expected = Path.Combine(home, "Paperless", "system/tasks.json");
+        Assert.Equal(expected, path);
     }
 
     [Fact]
