@@ -11,7 +11,7 @@
    a. Checar se já existe no SQLite com mesmo modified_date
    b. Se NÃO existe ou mudou → chunkar + vetorizar + upsert
    c. Se existe e NÃO mudou → pular (já indexado)
-3. Remover do SQLite arquivos que não existem mais na pasta
+3. Remover do SQLite arquivos que não existem mais na pasta <-- módulo Vector
 ```
  
 **Fluxo de Atualização em Tempo Real:**
@@ -51,7 +51,20 @@ private void OnFileChanged(string filePath)
 }
 ```
  
-**Arquivos suportados:** `.txt`, `.md`, `.json`, `.csv`, `.log`, `.cs`, `.java`, `.py`, `.xml`
+---
+
+FileSystemWatcher
+
+Teremos um delay antes de executar de forma default, o sistema de rag!
+
+User modificou, adicionou ou removeu algo? Depois de 20s, verificamos a ação revisada e:
+- User deletou?: Deletar os chunks no sqlite.
+- User atualisou?: Pegar aquele arquivo inteiro, gerar rag, salvar rag novo e excluir rag antigo.
+- User adicionou?: Pegar arquivo, criar rag, verificar se não há um arquivo com o mesmo rag (temos que criar o rag primiro pois iremos comparar o hash do chunk para verificar se o arquivo/chunk é o mesmo ou se já existe no banco), salvar,
+
+---
+
+**Arquivos suportados:** `.txt`, `.md`, `.json`, `.csv`, `.log`, `.cs`, `.java`, `.py`, `.xml`, etc... menos imagens, vídeos, audios, etc...
  
 ---
  
