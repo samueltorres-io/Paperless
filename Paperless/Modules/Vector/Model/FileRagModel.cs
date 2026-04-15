@@ -283,6 +283,25 @@ public class FileRagModel : DataContext
     }
 
     /// <summary>
+    /// Busca o embedding de um chunk que possua conteúdo idêntico.
+    /// Usado para deduplicação: se o conteúdo já foi vetorizado antes,
+    /// reutiliza o embedding existente sem chamar o Ollama novamente.
+    /// Retorna null se nenhum chunk com o mesmo conteúdo existir.
+    /// </summary>
+    public float[]? FindEmbeddingByContent(string content)
+    {
+        using var conn = GetConnection();
+        conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT embedding FROM chunks WHERE content = $ct LIMIT 1";
+        cmd.Parameters.AddWithValue("$ct", content);
+
+        var result = cmd.ExecuteScalar();
+        return result is byte[] bytes ? FromBytes(bytes) : null;
+    }
+
+    /// <summary>
     /// Verifica se um arquivo já foi indexado.
     /// </summary>
     public bool FileExists(string filePath)
