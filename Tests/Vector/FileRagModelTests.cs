@@ -17,7 +17,7 @@ public class FileRagModelTests : IDisposable
 
     public void Dispose()
     {
-        try { File.Delete(_dbPath); }
+        try { System.IO.File.Delete(_dbPath); }
         catch { /* cleanup */ }
     }
 
@@ -43,7 +43,7 @@ public class FileRagModelTests : IDisposable
     [Fact]
     public void Constructor_ShouldCreateDatabaseFile()
     {
-        Assert.True(File.Exists(_dbPath));
+        Assert.True(System.IO.File.Exists(_dbPath));
     }
 
     [Fact]
