@@ -38,16 +38,16 @@ internal class Program
 
         /* ══════════════ 4. Health check do Ollama ══════════════ */
 
-        Console.WriteLine("Verificando conexão com Ollama...");
-
-        if (!await ollama.HealthCheckAsync())
+        using (var healthSpinner = new Spinner("Verificando conexão com Ollama"))
         {
-            Console.WriteLine("Ollama não está rodando!");
-            Console.WriteLine("Execute 'ollama serve' e tente novamente.");
-            return;
+            if (!await ollama.HealthCheckAsync())
+            {
+                healthSpinner.Fail("Ollama não está rodando!");
+                Console.WriteLine("  Execute 'ollama serve' e tente novamente.");
+                return;
+            }
+            healthSpinner.Succeed("Ollama conectado");
         }
-
-        Console.WriteLine("Ollama conectado.\n");
 
         /* ══════════════ 5. Carregar system prompt ══════════════ */
 
@@ -58,7 +58,13 @@ internal class Program
         var userFolder = settings.Storage.GetFullUserFolderPath();
 
         using var indexer = new FileIndexer(ollama, ragModel, userFolder);
-        await indexer.StartAsync();
+
+        using (var indexSpinner = new Spinner("Indexando arquivos"))
+        {
+            await indexer.StartAsync();
+            indexSpinner.Succeed("Arquivos indexados");
+        }
+
         Console.WriteLine();
 
         /* ══════════════ 7. Iniciar ChatService ══════════════ */
@@ -81,7 +87,7 @@ internal class Program
         /* ══════════════ 9. Shutdown ══════════════ */
 
         indexer.Stop();
-        Console.WriteLine("\nAté mais!");
+        Console.WriteLine("\n  Até mais! 👋");
     }
 
     // ═══════════════════════ REPL ═══════════════════════
@@ -95,7 +101,8 @@ internal class Program
     {
         while (!ct.IsCancellationRequested)
         {
-            Console.Write("\n> ");
+            Console.Write("\n  ❯ ");
+            Console.ForegroundColor = ConsoleColor.Cyan;
 
             string? input;
             try
@@ -105,6 +112,10 @@ internal class Program
             catch (OperationCanceledException)
             {
                 break;
+            }
+            finally
+            {
+                Console.ResetColor();
             }
 
             if (input is null)
@@ -131,24 +142,147 @@ internal class Program
                     /* CommandResult.NotHandled → tratar como pergunta normal */
                 }
 
-                /* Chat com RAG */
+                /* Chat com RAG — com spinner de fases */
                 Console.WriteLine();
-                var answer = await chat.AskAsync(trimmed, ct);
-                Console.WriteLine(answer);
+                await AskWithSpinnerAsync(chat, trimmed, ct);
             }
             catch (OperationCanceledException)
             {
+                Console.WriteLine("\n  ⚠ Operação cancelada.");
                 break;
             }
             catch (TimeoutException ex)
             {
-                Console.WriteLine($"Timeout: {ex.Message}");
+                Console.WriteLine($"\n  ⏱ Timeout: {ex.Message}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Erro: {ex.Message}");
+                Console.WriteLine($"\n  ✗ Erro: {ex.Message}");
             }
         }
+    }
+
+    /// <summary>
+    /// Executa a pergunta ao ChatService exibindo um spinner com fases
+    /// progressivas enquanto aguarda a resposta.
+    /// </summary>
+    private static async Task AskWithSpinnerAsync(
+        ChatService chat, string question, CancellationToken ct)
+    {
+        // Cria um CTS vinculado para poder cancelar o spinner
+        // independentemente quando a resposta chegar.
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        var phases = new[]
+        {
+            ("🔍", "Analisando pergunta..."),
+            ("📚", "Buscando contexto relevante..."),
+            ("🧠", "Planejando resposta..."),
+            ("✍️",  "Gerando resposta..."),
+        };
+
+        // Inicia o spinner de fases em background
+        var spinnerTask = RunPhasedSpinnerAsync(phases, linkedCts.Token);
+
+        string answer;
+        try
+        {
+            // Executa a chamada real — aqui é onde o Ollama processa
+            answer = await chat.AskAsync(question, ct);
+        }
+        finally
+        {
+            // Para o spinner assim que a resposta chegar (ou erro)
+            linkedCts.Cancel();
+
+            try { await spinnerTask; }
+            catch (OperationCanceledException) { /* esperado */ }
+
+            // Limpa a linha do spinner
+            ClearCurrentLine();
+        }
+
+        // Exibe a resposta formatada
+        PrintAnswer(answer);
+    }
+
+    /// <summary>
+    /// Exibe um spinner animado que progride por fases ao longo do tempo.
+    /// Cada fase tem um ícone e uma mensagem descritiva.
+    /// </summary>
+    private static async Task RunPhasedSpinnerAsync(
+        (string icon, string text)[] phases,
+        CancellationToken ct)
+    {
+        var spinChars = new[] { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' };
+        int spinIdx = 0;
+        int phaseIdx = 0;
+        int tick = 0;
+
+        // Cada fase dura ~2.5s (25 ticks × 100ms)
+        const int ticksPerPhase = 25;
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var (icon, text) = phases[phaseIdx];
+                var spinChar = spinChars[spinIdx % spinChars.Length];
+
+                ClearCurrentLine();
+                Console.ForegroundColor = ConsoleColor.DarkYellow;
+                Console.Write($"  {spinChar} {icon} {text}");
+                Console.ResetColor();
+
+                await Task.Delay(100, ct);
+
+                spinIdx++;
+                tick++;
+
+                // Avança de fase (exceto a última, que fica girando)
+                if (tick >= ticksPerPhase && phaseIdx < phases.Length - 1)
+                {
+                    phaseIdx++;
+                    tick = 0;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Esperado — o spinner foi cancelado porque a resposta chegou
+        }
+    }
+
+    /// <summary>
+    /// Exibe a resposta do assistente com formatação visual.
+    /// </summary>
+    private static void PrintAnswer(string answer)
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.Write("  ✔ ");
+        Console.ResetColor();
+
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.WriteLine("Resposta:\n");
+        Console.ResetColor();
+
+        // Imprime com margem lateral para melhor leitura
+        var lines = answer.Split('\n');
+        foreach (var line in lines)
+            Console.WriteLine($"  {line}");
+
+        Console.WriteLine();
+    }
+
+    /// <summary>
+    /// Limpa a linha atual do console (usada pelo spinner).
+    /// </summary>
+    private static void ClearCurrentLine()
+    {
+        int currentLine = Console.CursorTop;
+        Console.SetCursorPosition(0, currentLine);
+        Console.Write(new string(' ', Math.Min(Console.WindowWidth, 120)));
+        Console.SetCursorPosition(0, currentLine);
     }
 
     // ═══════════════════════ Comandos ═══════════════════════
@@ -177,7 +311,7 @@ internal class Program
 
             case "/clear":
                 session.Reset();
-                Console.WriteLine("Sessão limpa.");
+                Console.WriteLine("  ✔ Sessão limpa.");
                 return Task.FromResult(CommandResult.Handled);
 
             case "/todo":
@@ -195,8 +329,8 @@ internal class Program
     {
         if (parts.Length < 2)
         {
-            Console.WriteLine("Uso: /todo <add|list|done|remove> [args]");
-            Console.WriteLine("     /help para detalhes.");
+            Console.WriteLine("  Uso: /todo <add|list|done|remove> [args]");
+            Console.WriteLine("       /help para detalhes.");
             return;
         }
 
@@ -221,20 +355,17 @@ internal class Program
                 break;
 
             default:
-                Console.WriteLine($"Ação desconhecida: {action}");
-                Console.WriteLine("Ações: add, list, done, remove");
+                Console.WriteLine($"  Ação desconhecida: {action}");
+                Console.WriteLine("  Ações: add, list, done, remove");
                 break;
         }
     }
 
     private static void HandleTodoAdd(string[] parts, TodoManager todo)
     {
-        // /todo add "título" "descrição" prioridade
-        // /todo add "título" prioridade
-        // /todo add "título"
         if (parts.Length < 3)
         {
-            Console.WriteLine("Uso: /todo add \"título\" [\"descrição\"] [1-5]");
+            Console.WriteLine("  Uso: /todo add \"título\" [\"descrição\"] [1-5]");
             return;
         }
 
@@ -251,7 +382,7 @@ internal class Program
         }
 
         var task = todo.CreateTask(title, description, priority);
-        Console.WriteLine($" ✓ Tarefa criada: {task}");
+        Console.WriteLine($"  ✔ Tarefa criada: {task}");
     }
 
     private static void HandleTodoList(string[] parts, TodoManager todo)
@@ -265,45 +396,45 @@ internal class Program
 
         if (tasks.Count == 0)
         {
-            Console.WriteLine(" Nenhuma tarefa encontrada.");
+            Console.WriteLine("  Nenhuma tarefa encontrada.");
             return;
         }
 
         Console.WriteLine();
         foreach (var t in tasks)
-            Console.WriteLine(t);
+            Console.WriteLine($"  {t}");
         Console.WriteLine();
-        Console.WriteLine($" {tasks.Count} tarefa(s)");
+        Console.WriteLine($"  {tasks.Count} tarefa(s)");
     }
 
     private static void HandleTodoDone(string[] parts, TodoManager todo)
     {
         if (parts.Length < 3)
         {
-            Console.WriteLine("Uso: /todo done <id>");
+            Console.WriteLine("  Uso: /todo done <id>");
             return;
         }
 
         var result = todo.CompleteTask(parts[2]);
 
         if (result is null)
-            Console.WriteLine($" Tarefa '{parts[2]}' não encontrada.");
+            Console.WriteLine($"  ✗ Tarefa '{parts[2]}' não encontrada.");
         else
-            Console.WriteLine($" ✓ Concluída: {result}");
+            Console.WriteLine($"  ✔ Concluída: {result}");
     }
 
     private static void HandleTodoRemove(string[] parts, TodoManager todo)
     {
         if (parts.Length < 3)
         {
-            Console.WriteLine("Uso: /todo remove <id>");
+            Console.WriteLine("  Uso: /todo remove <id>");
             return;
         }
 
         if (todo.DeleteTask(parts[2]))
-            Console.WriteLine($" ✓ Tarefa '{parts[2]}' removida.");
+            Console.WriteLine($"  ✔ Tarefa '{parts[2]}' removida.");
         else
-            Console.WriteLine($" Tarefa '{parts[2]}' não encontrada.");
+            Console.WriteLine($"  ✗ Tarefa '{parts[2]}' não encontrada.");
     }
 
     // ═══════════════════════ Parsing ═══════════════════════
@@ -351,26 +482,39 @@ internal class Program
 
     private static void PrintBanner()
     {
-        Console.WriteLine("╔═══════════════════════════════════════╗");
-        Console.WriteLine("║       Paperless — Assistente CLI      ║");
-        Console.WriteLine("║         100% offline com Ollama       ║");
-        Console.WriteLine("╚═══════════════════════════════════════╝");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("╔═══════════════════════════════════════════╗");
+        Console.WriteLine("║       📄 Paperless — Assistente CLI       ║");
+        Console.WriteLine("║          100% offline com Ollama          ║");
+        Console.WriteLine("╚═══════════════════════════════════════════╝");
+        Console.ResetColor();
+
+        Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.WriteLine("  /help para ver os comandos disponíveis");
+        Console.ResetColor();
     }
 
     private static void PrintHelp()
     {
         Console.WriteLine();
-        Console.WriteLine("  Comandos:");
-        Console.WriteLine("    /todo add \"título\" [\"descrição\"] [1-5]  — criar tarefa");
-        Console.WriteLine("    /todo list [1-5]                        — listar tarefas");
-        Console.WriteLine("    /todo done <id>                         — concluir tarefa");
-        Console.WriteLine("    /todo remove <id>                       — remover tarefa");
-        Console.WriteLine("    /status                                 — estatísticas do índice");
-        Console.WriteLine("    /clear                                  — limpar sessão");
-        Console.WriteLine("    /exit                                   — sair");
-        Console.WriteLine();
-        Console.WriteLine("  Qualquer outro texto é enviado como pergunta ao assistente.");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("  ╭─── Comandos ─────────────────────────────────────╮");
+        Console.ResetColor();
+        Console.WriteLine("  │                                                  │");
+        Console.WriteLine("  │  /todo add \"título\" [\"desc\"] [1-5]  → criar      │");
+        Console.WriteLine("  │  /todo list [1-5]                   → listar     │");
+        Console.WriteLine("  │  /todo done <id>                    → concluir   │");
+        Console.WriteLine("  │  /todo remove <id>                  → remover    │");
+        Console.WriteLine("  │  /status                            → estatísticas│");
+        Console.WriteLine("  │  /clear                             → limpar     │");
+        Console.WriteLine("  │  /exit                              → sair       │");
+        Console.WriteLine("  │                                                  │");
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.WriteLine("  │  Qualquer outro texto → pergunta ao assistente   │");
+        Console.ResetColor();
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("  ╰─────────────────────────────────────────────────╯");
+        Console.ResetColor();
         Console.WriteLine();
     }
 
@@ -379,12 +523,27 @@ internal class Program
         var (files, chunks) = ragModel.GetStats();
 
         Console.WriteLine();
-        Console.WriteLine($"  Arquivos indexados: {files}");
-        Console.WriteLine($"  Chunks no banco:    {chunks}");
-        Console.WriteLine($"  Sessão ativa:       {(session.IsExpired ? "não (expirada)" : "sim")}");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.Write("  📁 Arquivos indexados: ");
+        Console.ResetColor();
+        Console.WriteLine(files);
+
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.Write("  🧩 Chunks no banco:    ");
+        Console.ResetColor();
+        Console.WriteLine(chunks);
+
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.Write("  🔗 Sessão ativa:       ");
+        Console.ResetColor();
+        Console.WriteLine(session.IsExpired ? "não (expirada)" : "sim");
 
         if (session.HasContext)
-            Console.WriteLine($"  Contexto sessão:    {Truncate(session.Summary, 80)}");
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"  💬 Contexto: {Truncate(session.Summary, 70)}");
+            Console.ResetColor();
+        }
 
         Console.WriteLine();
     }
@@ -417,11 +576,15 @@ internal class Program
 
             if (File.Exists(path))
             {
-                Console.WriteLine($"System prompt carregado de: {path}");
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine($"  System prompt carregado de: {path}");
+                Console.ResetColor();
                 return File.ReadAllText(path).Trim();
             }
 
-            Console.WriteLine($"Arquivo de prompt não encontrado: {value} (usando padrão)");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"  ⚠ Arquivo de prompt não encontrado: {value} (usando padrão)");
+            Console.ResetColor();
             return "You are a helpful local assistant.";
         }
 
@@ -456,5 +619,87 @@ internal class Program
         Handled,
         NotHandled,
         Exit,
+    }
+}
+
+// ═══════════════════════ Spinner ═══════════════════════
+
+/// <summary>
+/// Spinner animado reutilizável para operações de inicialização.
+/// Uso: using var s = new Spinner("Carregando..."); ... s.Succeed("OK");
+/// </summary>
+internal sealed class Spinner : IDisposable
+{
+    private static readonly char[] _frames = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' };
+
+    private readonly string _text;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Task _animationTask;
+    private bool _finished;
+
+    public Spinner(string text)
+    {
+        _text = text;
+        _animationTask = AnimateAsync(_cts.Token);
+    }
+
+    private async Task AnimateAsync(CancellationToken ct)
+    {
+        int i = 0;
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var frame = _frames[i++ % _frames.Length];
+                ClearLine();
+                Console.ForegroundColor = ConsoleColor.DarkYellow;
+                Console.Write($"  {frame} {_text}");
+                Console.ResetColor();
+                await Task.Delay(80, ct);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Succeed(string message)
+    {
+        Stop();
+        ClearLine();
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.Write("  ✔ ");
+        Console.ResetColor();
+        Console.WriteLine(message);
+    }
+
+    public void Fail(string message)
+    {
+        Stop();
+        ClearLine();
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.Write("  ✗ ");
+        Console.ResetColor();
+        Console.WriteLine(message);
+    }
+
+    private void Stop()
+    {
+        if (_finished) return;
+        _finished = true;
+        _cts.Cancel();
+        try { _animationTask.Wait(); } catch { }
+    }
+
+    private static void ClearLine()
+    {
+        int top = Console.CursorTop;
+        Console.SetCursorPosition(0, top);
+        Console.Write(new string(' ', Math.Min(Console.WindowWidth, 120)));
+        Console.SetCursorPosition(0, top);
+    }
+
+    public void Dispose()
+    {
+        Stop();
+        _cts.Dispose();
     }
 }

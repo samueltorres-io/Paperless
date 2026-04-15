@@ -16,18 +16,23 @@ public sealed class EnvironmentSettings
 public sealed class StorageSettings
 {
     public string BaseFolder { get; set; } = "Paperless";
-    public string TasksFilePath { get; set; } = "tasks.json";
+    public string TasksFilePath { get; set; } = "system/tasks.json";
     public string DatabaseFilePath { get; set; } = "system/paperless.db";
     public string UserFolderPath { get; set; } = "data/";
 
+    private string GetHomePath()
+        => Path.Combine(
+            System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile),
+            BaseFolder);
+
     public string GetFullTasksPath()
-        => Path.Combine(BaseFolder, TasksFilePath);
+        => Path.Combine(GetHomePath(), TasksFilePath);
 
     public string GetFullDatabasePath()
-        => Path.Combine(BaseFolder, DatabaseFilePath);
+        => Path.Combine(GetHomePath(), DatabaseFilePath);
 
     public string GetFullUserFolderPath()
-        => Path.Combine(BaseFolder, UserFolderPath);
+        => Path.Combine(GetHomePath(), UserFolderPath);
 }
 
 public sealed class AssistantSettings
