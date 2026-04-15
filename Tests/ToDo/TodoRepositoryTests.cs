@@ -26,13 +26,13 @@ public class TodoRepositoryTests : IDisposable
     public void Constructor_ShouldCreateDirectoryAndFile()
     {
         Assert.True(Directory.Exists(_tempDir));
-        Assert.True(File.Exists(_filePath));
+        Assert.True(System.IO.File.Exists(_filePath));
     }
 
     [Fact]
     public void Constructor_ShouldInitializeWithEmptyArray()
     {
-        var content = File.ReadAllText(_filePath);
+        var content = System.IO.File.ReadAllText(_filePath);
         Assert.Equal("[]", content);
     }
 
@@ -106,7 +106,7 @@ public class TodoRepositoryTests : IDisposable
     public void SaveAll_ShouldWriteIndentedJson()
     {
         _repo.SaveAll([new TodoTask("T", "D", 1)]);
-        var json = File.ReadAllText(_filePath);
+        var json = System.IO.File.ReadAllText(_filePath);
 
         Assert.Contains("\n", json);
         Assert.Contains("  ", json);
@@ -116,7 +116,7 @@ public class TodoRepositoryTests : IDisposable
     public void SaveAll_ShouldUseCamelCasePropertyNames()
     {
         _repo.SaveAll([new TodoTask("T", "D", 1)]);
-        var json = File.ReadAllText(_filePath);
+        var json = System.IO.File.ReadAllText(_filePath);
 
         Assert.Contains("\"title\"", json);
         Assert.Contains("\"description\"", json);
@@ -174,6 +174,6 @@ public class TodoRepositoryTests : IDisposable
         var deepPath = Path.Combine(_tempDir, "a", "b", "c", "tasks.json");
         var repo = new TodoRepository(deepPath);
 
-        Assert.True(File.Exists(deepPath));
+        Assert.True(System.IO.File.Exists(deepPath));
     }
 }
