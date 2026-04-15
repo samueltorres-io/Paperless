@@ -223,9 +223,14 @@ public class FileRagModel : DataContext
         using var conn = GetConnection();
         conn.Open();
 
+        using (var command = new SqliteCommand("PRAGMA busy_timeout = 5000;", conn)) 
+        {
+            command.ExecuteNonQuery();
+        }
+
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM chunks";
-
+        
         return ReadAll(cmd);
     }
 
@@ -421,23 +426,25 @@ public class FileRagModel : DataContext
     {
         return new DocumentChunk
         {
-            Id              = reader.GetString(reader.GetOrdinal("id")),
-            FilePath        = reader.GetString(reader.GetOrdinal("file_path")),
-            ChunkIndex      = reader.GetInt32(reader.GetOrdinal("chunk_index")),
-            Content         = reader.GetString(reader.GetOrdinal("content")),
-            Embedding       = FromBytes((byte[])reader["embedding"]),
-            FileModifiedUtc = DateTime.Parse(reader.GetString(reader.GetOrdinal("file_modified_utc"))),
-            CreatedAt       = DateTime.Parse(reader.GetString(reader.GetOrdinal("created_at")))
+            Id              = reader.GetString(0),
+            FilePath        = reader.GetString(1),
+            ChunkIndex      = reader.GetInt32(2),
+            Content         = reader.GetString(3),
+            Embedding       = FromBytes((byte[])reader.GetValue(4)),
+            FileModifiedUtc = reader.GetDateTime(5), 
+            CreatedAt       = reader.GetDateTime(6)
         };
     }
 
     private static List<DocumentChunk> ReadAll(SqliteCommand cmd)
     {
         using var reader = cmd.ExecuteReader();
-        var list = new List<DocumentChunk>();
+        var list = new List<DocumentChunk>(256); 
 
         while (reader.Read())
+        {
             list.Add(Map(reader));
+        }
 
         return list;
     }
