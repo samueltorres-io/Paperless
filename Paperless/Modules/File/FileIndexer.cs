@@ -29,6 +29,8 @@ public sealed class FileIndexer : IDisposable
     private FileSystemWatcher? _watcher;
     private bool _disposed;
 
+    private int _started = 0;
+
     /// <summary>
     /// Operações pendentes por arquivo (debounce).
     /// Chave = caminho absoluto do arquivo.
@@ -57,6 +59,10 @@ public sealed class FileIndexer : IDisposable
     /// </summary>
     public async Task StartAsync(CancellationToken ct = default)
     {
+
+        if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
+            throw new InvalidOperationException("FileIndexer já foi iniciado.");
+
         Console.WriteLine($"[FileIndexer] Indexando pasta: {_watchPath}");
 
         await InitialScanAsync(ct);
@@ -355,11 +361,11 @@ public sealed class FileIndexer : IDisposable
     {
         if (_disposed) return;
 
-        _cts.Cancel();
-        /* Fallback --> */Stop();
+        Stop();
         _watcher?.Dispose();
-        _disposed = true;
         _cts.Dispose();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     private enum FileAction
