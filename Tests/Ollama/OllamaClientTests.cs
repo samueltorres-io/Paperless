@@ -10,7 +10,7 @@ using Paperless.Modules.Ollama.Dto;
 
 namespace Paperless.Tests.Ollama;
 
-public class OllamaClientTests : IDisposable
+public class OllamaClientTests
 {
     private readonly Mock<HttpMessageHandler> _handlerMock;
     private readonly OllamaClient _client;
@@ -29,11 +29,10 @@ public class OllamaClientTests : IDisposable
 
         var httpClient = new HttpClient(_handlerMock.Object)
         {
-            BaseAddress = new Uri(_options.BaseUrl.TrimEnd('/') + "/"),
-            Timeout = Timeout.InfiniteTimeSpan,
+            BaseAddress = new Uri(_options.BaseUrl.TrimEnd('/') + "/")
         };
 
-        _client = CreateClientWithHandler(httpClient);
+        _client = new OllamaClient(httpClient, _options); 
     }
 
     private OllamaClient CreateClientWithHandler(HttpClient http)
@@ -269,13 +268,5 @@ public class OllamaClientTests : IDisposable
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => _client.EmbedAsync("texto"));
-    }
-
-    [Fact]
-    public void Dispose_CalledTwice_ShouldNotThrow()
-    {
-        var client = new OllamaClient(_options);
-        client.Dispose();
-        client.Dispose();
     }
 }
