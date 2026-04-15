@@ -9,4 +9,7 @@ public class DocumentChunk
     public float[] Embedding { get; set; } = default!;
     public DateTime FileModifiedUtc { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    public static string BuildId(string filePath, int chunkIndex)
+        => $"{filePath}:{chunkIndex}";
 }
