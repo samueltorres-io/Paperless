@@ -24,6 +24,7 @@ public sealed class FileIndexer : IDisposable
     private readonly FileRagModel _ragModel;
     private readonly FileIndexerOptions _options;
     private readonly string _watchPath;
+    private readonly CancellationTokenSource _cts = new();
 
     private FileSystemWatcher? _watcher;
     private bool _disposed;
@@ -197,7 +198,7 @@ public sealed class FileIndexer : IDisposable
                 await Task.Delay(_options.DebounceMs, cts.Token);
                 _pending.TryRemove(fullPath, out _);
 
-                await ProcessEventAsync(fullPath, action);
+                await ProcessEventAsync(fullPath, action, _cts.Token);
             }
             catch (TaskCanceledException)
             {
@@ -246,7 +247,7 @@ public sealed class FileIndexer : IDisposable
 
     // ═══════════════════════ Processamento ═══════════════════════
 
-    private async Task ProcessEventAsync(string fullPath, FileAction action)
+    private async Task ProcessEventAsync(string fullPath, FileAction action, CancellationToken ct = default)
     {
         var relPath = GetRelativePath(fullPath);
 
@@ -262,7 +263,7 @@ public sealed class FileIndexer : IDisposable
                 if (!System.IO.File.Exists(fullPath))
                     return;
 
-                await IndexFileAsync(fullPath, CancellationToken.None);
+                await IndexFileAsync(fullPath, ct);
                 Console.WriteLine($"[FileIndexer] Indexado: {relPath}");
                 break;
         }
@@ -354,9 +355,11 @@ public sealed class FileIndexer : IDisposable
     {
         if (_disposed) return;
 
-        Stop();
+        _cts.Cancel();
+        /* Fallback --> */Stop();
         _watcher?.Dispose();
         _disposed = true;
+        _cts.Dispose();
     }
 
     private enum FileAction
