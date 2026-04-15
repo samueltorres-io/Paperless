@@ -9,3 +9,4 @@
     [] AppSettings
     [] DataContext
 [] Update na performance da llm
+[] Resolver problema da skill não ser chamada
