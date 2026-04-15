@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using System.IO;
 
 namespace Paperless.Configuration;
 
@@ -8,7 +9,22 @@ public abstract class DataContext
 
     public DataContext(string databasePath = "./data/database.db")
     {
-        _connectionString = $"Data Source={databasePath}";
+        if (string.IsNullOrWhiteSpace(databasePath))
+        {
+            throw new ArgumentException("Database path cannot be null or empty.", nameof(databasePath));
+        }
+
+        if (!IsInMemory(databasePath))
+        {
+            EnsureDatabaseDirectoryExists(databasePath);
+        }
+
+        var csb = new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath
+        };
+
+        _connectionString = csb.ToString();
         Initialize();
     }
 
@@ -29,4 +45,18 @@ public abstract class DataContext
     }
 
     protected abstract string GetSchema();
+
+    private static bool IsInMemory(string databasePath) =>
+        databasePath.Trim().Equals(":memory:", StringComparison.OrdinalIgnoreCase);
+
+    private static void EnsureDatabaseDirectoryExists(string databasePath)
+    {
+        var directory = Path.GetDirectoryName(databasePath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(directory);
+    }
 }
