@@ -1,3 +1,4 @@
+using Xunit;
 using Paperless.Configuration;
 
 namespace Paperless.Tests.Configuration;

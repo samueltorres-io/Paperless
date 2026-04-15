@@ -1,3 +1,4 @@
+using Xunit;
 using Paperless.Modules.Vector.Util;
 
 namespace Paperless.Tests.Vector;
@@ -41,7 +42,7 @@ public class CosineSimilarityTests
     public void Compute_ScaledVectors_ShouldReturnSameAsOriginal()
     {
         float[] a = [1f, 2f, 3f];
-        float[] b = [2f, 4f, 6f]; // 2 * a
+        float[] b = [2f, 4f, 6f];
 
         var score = CosineSimilarity.Compute(a, b);
 
@@ -71,7 +72,6 @@ public class CosineSimilarityTests
     [Fact]
     public void Compute_KnownVectors_ShouldReturnExpectedValue()
     {
-        // cos([1,0], [1,1]) = 1 / sqrt(2) ≈ 0.7071
         float[] a = [1f, 0f];
         float[] b = [1f, 1f];
 
@@ -108,10 +108,10 @@ public class CosineSimilarityTests
         float[] query = [1f, 0f, 0f];
         var candidates = new List<float[]>
         {
-            [1f, 0f, 0f],   // score = 1.0
-            [0f, 1f, 0f],   // score = 0.0
-            [0.7f, 0.7f, 0f], // score ≈ 0.71
-            [0.9f, 0.1f, 0f], // score ≈ 0.99
+            new float[] { 1f, 0f, 0f },
+            new float[] { 0f, 1f, 0f },
+            new float[] { 0.7f, 0.7f, 0f },
+            new float[] { 0.9f, 0.1f, 0f },
         };
 
         var results = CosineSimilarity.Rank(query, candidates, topK: 2);
@@ -127,8 +127,8 @@ public class CosineSimilarityTests
         float[] query = [1f, 0f];
         var candidates = new List<float[]>
         {
-            [1f, 0f],   // score = 1.0
-            [0f, 1f],   // score = 0.0
+            new float[] { 1f, 0f },
+            new float[] { 0f, 1f },
         };
 
         var results = CosineSimilarity.Rank(query, candidates, topK: 10, minScore: 0.5);
@@ -154,9 +154,9 @@ public class CosineSimilarityTests
         float[] query = [1f, 0f, 0f];
         var candidates = new List<float[]>
         {
-            [0.5f, 0.5f, 0f],
-            [0.9f, 0.1f, 0f],
-            [0.7f, 0.3f, 0f],
+            new float[] { 0.5f, 0.5f, 0f },
+            new float[] { 0.9f, 0.1f, 0f },
+            new float[] { 0.7f, 0.3f, 0f },
         };
 
         var results = CosineSimilarity.Rank(query, candidates, topK: 3, minScore: 0.0);
@@ -182,7 +182,7 @@ public class CosineSimilarityTests
     public void Rank_AllBelowMinScore_ShouldReturnEmpty()
     {
         float[] query = [1f, 0f];
-        var candidates = new List<float[]> { [0f, 1f] };
+        var candidates = new List<float[]> { new float[] { 0f, 1f } };
 
         var results = CosineSimilarity.Rank(query, candidates, minScore: 0.5);
 

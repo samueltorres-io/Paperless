@@ -1,3 +1,4 @@
+using Xunit;
 using Paperless.Modules.Vector.Entity;
 
 namespace Paperless.Tests.Vector;

@@ -1,3 +1,4 @@
+using Xunit;
 using Paperless.Modules.Vector.Entity;
 using Paperless.Modules.Vector.Model;
 

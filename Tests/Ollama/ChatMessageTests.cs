@@ -1,3 +1,4 @@
+using Xunit;
 using Paperless.Modules.Ollama;
 
 namespace Paperless.Tests.Ollama;

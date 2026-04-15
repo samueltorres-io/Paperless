@@ -1,3 +1,4 @@
+using Xunit;
 using Microsoft.Data.Sqlite;
 using Paperless.Configuration;
 

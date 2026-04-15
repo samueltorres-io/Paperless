@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Paperless.csproj" />
+    <ProjectReference Include="..\Paperless\Paperless.csproj" />
   </ItemGroup>
 
 </Project>

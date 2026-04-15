@@ -1,3 +1,4 @@
+using Xunit;
 using System.Text.Json;
 using Paperless.Modules.Ollama;
 using Paperless.Modules.Ollama.Dto;
