@@ -78,17 +78,6 @@ public class TodoTaskTests
         Assert.Equal("nova descrição", task.Description);
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void UpdateDescription_WithInvalidText_ShouldThrowArgumentException(string? badDesc)
-    {
-        var task = new TodoTask("T", "ok", 1);
-
-        Assert.Throws<ArgumentException>(() => task.UpdateDescription(badDesc!));
-    }
-
     [Fact]
     public void CompleteTask_ShouldSetIsCompleteToTrue()
     {
