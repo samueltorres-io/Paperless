@@ -1,4 +1,5 @@
 using Paperless.Modules.File;
+using Xunit;
 
 namespace Paperless.Tests.File;
 
