@@ -4,7 +4,7 @@
     [x] Ollama
     [x] Vector
     [x] File
-    [] Session
+    [x] Session
     [] Chat
     [x] AppSettings
     [x] DataContext
