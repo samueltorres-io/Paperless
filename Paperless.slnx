@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/Paperless.Tests.csproj" />
+  </Folder>
+  <Project Path="Paperless/Paperless.csproj" />
+</Solution>
