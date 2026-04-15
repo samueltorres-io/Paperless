@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,11 +11,10 @@ using Paperless.Modules.Ollama.Dto;
 
 namespace Paperless.Modules.Ollama;
 
-public sealed class OllamaClient : IDisposable
+public sealed class OllamaClient
 {
     private readonly HttpClient _http;
     private readonly OllamaOptions _options;
-    private bool _disposed;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -24,14 +22,15 @@ public sealed class OllamaClient : IDisposable
         WriteIndented = false,
     };
 
-    public OllamaClient(OllamaOptions options)
+    public OllamaClient(HttpClient http, OllamaOptions options)
     {
-        _options = options;
-        _http = new HttpClient
+        _http = http ?? throw new ArgumentNullException(nameof(http));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+
+        if (_http.BaseAddress == null)
         {
-            BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/"),
-            Timeout = Timeout.InfiniteTimeSpan,
-        };
+            _http.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+        }
     }
 
     /* Health Check — verifica se o Ollama está respondendo */
@@ -43,11 +42,7 @@ public sealed class OllamaClient : IDisposable
             using var response = await _http.GetAsync("", cts.Token);
             return response.IsSuccessStatusCode;
         }
-        catch (HttpRequestException)
-        {
-            return false;
-        }
-        catch (TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             return false;
         }
@@ -68,12 +63,12 @@ public sealed class OllamaClient : IDisposable
         using var cts = CreateTimeoutCts(_options.TimeoutSeconds, cancellationToken);
         using var httpResponse = await PostJsonAsync("api/chat", request, cts.Token);
 
-        await EnsureSuccessOrThrowAsync(httpResponse, "api/chat");
+        await EnsureSuccessOrThrowAsync(httpResponse, "api/chat", cts.Token);
 
         var result = await httpResponse.Content
             .ReadFromJsonAsync<OllamaChatResponse>(_jsonOptions, cts.Token);
 
-        if (result is null || string.IsNullOrWhiteSpace(result.Message.Content))
+        if (string.IsNullOrWhiteSpace(result?.Message?.Content))
             throw new InvalidOperationException("Ollama returned an empty response!");
 
         return result.Message.Content.Trim();
@@ -96,12 +91,12 @@ public sealed class OllamaClient : IDisposable
         using var cts = CreateTimeoutCts(_options.TimeoutSeconds, cancellationToken);
         using var httpResponse = await PostJsonAsync("api/embeddings", request, cts.Token);
 
-        await EnsureSuccessOrThrowAsync(httpResponse, "api/embeddings");
+        await EnsureSuccessOrThrowAsync(httpResponse, "api/embeddings", cts.Token);
 
         var result = await httpResponse.Content
             .ReadFromJsonAsync<OllamaEmbeddingResponse>(_jsonOptions, cts.Token);
 
-        if (result is null || result.Embedding.Length == 0)
+        if (result?.Embedding == null || result.Embedding.Length == 0)
             throw new InvalidOperationException("Ollama returned an empty embedding!");
 
         return result.Embedding;
@@ -113,12 +108,9 @@ public sealed class OllamaClient : IDisposable
         T payload,
         CancellationToken cancellationToken)
     {
-        var json = JsonSerializer.Serialize(payload, _jsonOptions);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
         try
         {
-            return await _http.PostAsync(endpoint, content, cancellationToken);
+            return await _http.PostAsJsonAsync(endpoint, payload, _jsonOptions, cancellationToken);
         }
         catch (HttpRequestException ex)
         {
@@ -135,14 +127,14 @@ public sealed class OllamaClient : IDisposable
     }
 
     private static async Task EnsureSuccessOrThrowAsync(
-        HttpResponseMessage response, string endpoint)
+        HttpResponseMessage response, string endpoint, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode) return;
 
         string? body = null;
         try
         {
-            body = await response.Content.ReadAsStringAsync();
+            body = await response.Content.ReadAsStringAsync(cancellationToken);
         }
         catch { /* ignore */ }
 
@@ -160,19 +152,8 @@ public sealed class OllamaClient : IDisposable
         int timeoutSeconds, CancellationToken cancellationToken)
     {
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
         if (timeoutSeconds > 0)
             cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
-
         return cts;
-    }
-
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _http.Dispose();
-            _disposed = true;
-        }
     }
 }
