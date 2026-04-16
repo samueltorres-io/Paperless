@@ -8,7 +8,7 @@
     [x] Chat
     [x] AppSettings
     [x] DataContext
-[] Update na performance da llm
+[x] Update na performance da llm
 [x] Resolver problema da skill não ser chamada
 
 [] Problema ao adicionar um arquivo na pasta 'data' para RAG {
