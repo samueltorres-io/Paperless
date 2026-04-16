@@ -1,11 +1,11 @@
 [] Documentação (README.md)
-[] Code Review + Testes:
+[x] Code Review + Testes:
     [x] ToDo
     [x] Ollama
     [x] Vector
     [x] File
     [x] Session
-    [] Chat
+    [x] Chat
     [x] AppSettings
     [x] DataContext
 [] Update na performance da llm
