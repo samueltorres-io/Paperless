@@ -3,6 +3,7 @@ using Paperless.Modules.Ollama;
 using Paperless.Modules.Session;
 using Paperless.Modules.Vector.Entity;
 using Paperless.Modules.Vector.Model;
+using System.Diagnostics;
 using Xunit;
 
 namespace Paperless.Tests.Chat;
@@ -99,6 +100,15 @@ public class ChatServiceTests
         return (service, ollama, rag, session);
     }
 
+    private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 1000)
+    {
+        var sw = Stopwatch.StartNew();
+        while (!condition() && sw.ElapsedMilliseconds < timeoutMs)
+            await Task.Delay(5);
+
+        Assert.True(condition(), "Timeout waiting for async background operation.");
+    }
+
     // ═══════════════════════ Construtor ═══════════════════════
 
     [Fact]
@@ -186,6 +196,7 @@ public class ChatServiceTests
 
         await service.AskAsync("pergunta");
 
+        await WaitUntilAsync(() => ollama.ChatCallCount == 2);
         Assert.Equal(2, ollama.ChatCallCount);
     }
 
@@ -246,6 +257,7 @@ public class ChatServiceTests
 
         await service.AskAsync("pergunta");
 
+        await WaitUntilAsync(() => session.SummaryUpdates.Count == 1);
         Assert.Single(session.SummaryUpdates);
         Assert.Equal("resumo gerado", session.SummaryUpdates[0]);
     }
@@ -260,6 +272,7 @@ public class ChatServiceTests
         await service.AskAsync("nova pergunta");
 
         // A segunda chamada ao Chat (resumo) deve incluir o contexto anterior
+        await WaitUntilAsync(() => ollama.ChatCallCount == 2 && ollama.ChatInputs.Count >= 2);
         var summaryPrompt = ollama.ChatInputs[1]; // índice 1 = chamada de resumo
         Assert.Contains("Usuário perguntou sobre faturas anteriormente.", summaryPrompt);
     }
@@ -290,6 +303,7 @@ public class ChatServiceTests
 
         await service.AskAsync("pergunta");
 
+        await WaitUntilAsync(() => ollama.ChatCallCount == 2);
         Assert.Empty(session.SummaryUpdates);
     }
 
@@ -309,16 +323,16 @@ public class ChatServiceTests
     [Fact]
     public async Task AskAsync_CancelledDuringSummary_ShouldPropagateAndNotSwallow()
     {
-        // CancellationToken cancelado durante a etapa de resumo deve propagar,
-        // não ser silenciado pelo catch genérico.
         using var cts = new CancellationTokenSource();
 
         // Cancela na segunda chamada (resumo)
         var cancellingOllama = new CancelOnSecondCallOllama(cts);
-        var svc = new ChatService(cancellingOllama, new FakeRagModel(), new FakeSession(), "prompt");
+        var session = new FakeSession();
+        var svc = new ChatService(cancellingOllama, new FakeRagModel(), session, "prompt");
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            svc.AskAsync("pergunta", cts.Token));
+        var result = await svc.AskAsync("pergunta", cts.Token);
+        Assert.Equal("resposta", result);
+        Assert.Empty(session.SummaryUpdates);
     }
 
     // ═══════════════════════ RAG — contexto no prompt ═══════════════════════

@@ -75,19 +75,24 @@ public sealed class ChatService
         /* 5 — Obter resposta do modelo */
         var answer = await _ollama.ChatAsync(messages, ct);
 
-        /* 6 — Atualizar resumo da sessão (tolerante a falha, mas não a cancelamento) */
-        try
-        {
-            await UpdateSessionSummaryAsync(question, answer, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch
-        {
-            /* Falha no resumo não impede retornar a resposta ao usuário. */
-        }
+        /* 6 — Atualizar resumo da sessão em background (não bloquear a resposta do usuário) */
+        _ = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await UpdateSessionSummaryAsync(question, answer, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    /* Se o request foi cancelado, o resumo pode ser ignorado. */
+                }
+                catch
+                {
+                    /* Falha no resumo não impede retornar a resposta ao usuário. */
+                }
+            },
+            CancellationToken.None);
 
         return answer;
     }
