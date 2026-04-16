@@ -1,3 +1,5 @@
+using Paperless.Modules.Vector.Entity;
+
 namespace Paperless.Modules.Vector.Model;
 
 public interface IFileRagModel

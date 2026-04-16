@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Paperless.Configuration;
-using Paperless.Modules.Ollama;
+using Paperless.Modules.Ollama.Dto;
 
 namespace Paperless.Modules.Ollama;
 
