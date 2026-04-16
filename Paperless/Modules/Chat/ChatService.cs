@@ -57,12 +57,18 @@ public sealed class ChatService
         /* 3 — Buscar chunks similares (RAG) */
         var ragResults = _ragModel.SearchSimilar(queryEmbedding, RagTopK, RagMinScore);
 
-        /* 4 — Montar prompt */
-        var userPrompt = BuildUserPrompt(question, ragResults, _session.Summary);
+        /* 4 — Montar prompt (inclui substituição do {context} do system prompt) */
+        var contextBlock = BuildContextBlock(ragResults, _session.Summary);
+        var systemPrompt = _systemPrompt;
+
+        if (systemPrompt.Contains("{context}", StringComparison.Ordinal))
+            systemPrompt = systemPrompt.Replace("{context}", contextBlock);
+
+        var userPrompt = BuildUserPrompt(question, contextBlock);
 
         var messages = new List<ChatMessage>
         {
-            ChatMessage.System(_systemPrompt),
+            ChatMessage.System(systemPrompt),
             ChatMessage.User(userPrompt),
         };
 
@@ -89,8 +95,23 @@ public sealed class ChatService
     /// <summary>
     /// Monta o prompt do usuário combinando RAG + sessão + pergunta.
     /// </summary>
-    private static string BuildUserPrompt(
-        string question,
+    private static string BuildUserPrompt(string question, string contextBlock)
+    {
+        var sb = new StringBuilder();
+
+        if (!string.IsNullOrWhiteSpace(contextBlock))
+        {
+            sb.AppendLine(contextBlock);
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("[User question]");
+        sb.AppendLine(question);
+
+        return sb.ToString();
+    }
+
+    private static string BuildContextBlock(
         List<(Vector.Entity.DocumentChunk Chunk, double Score)> ragResults,
         string sessionSummary)
     {
@@ -115,10 +136,7 @@ public sealed class ChatService
             sb.AppendLine();
         }
 
-        sb.AppendLine("[User question]");
-        sb.AppendLine(question);
-
-        return sb.ToString();
+        return sb.ToString().TrimEnd();
     }
 
     /// <summary>

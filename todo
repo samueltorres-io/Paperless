@@ -9,7 +9,7 @@
     [x] AppSettings
     [x] DataContext
 [] Update na performance da llm
-[] Resolver problema da skill não ser chamada
+[x] Resolver problema da skill não ser chamada
 
 [] Problema ao adicionar um arquivo na pasta 'data' para RAG {
     ❯ [FileIndexer] Erro processando first_invest.txt: The CancellationTokenSource has been disposed.
