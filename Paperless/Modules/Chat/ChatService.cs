@@ -22,7 +22,7 @@ public sealed class ChatService
     private readonly string _systemPrompt;
 
     /* Configurações de busca RAG */
-    private const int RagTopK = 3;
+    private const int RagTopK = 2;
     private const double RagMinScore = 0.3;
 
     public ChatService(
@@ -57,14 +57,18 @@ public sealed class ChatService
         /* 3 — Buscar chunks similares (RAG) */
         var ragResults = _ragModel.SearchSimilar(queryEmbedding, RagTopK, RagMinScore);
 
-        /* 4 — Montar prompt (inclui substituição do {context} do system prompt) */
-        var contextBlock = BuildContextBlock(ragResults, _session.Summary);
+        /* 4 — Montar prompt (contexto vai só no system prompt) */
         var systemPrompt = _systemPrompt;
+        var contextPlaceholder = "{context}";
+        var contextNeeded = systemPrompt.Contains(contextPlaceholder, StringComparison.Ordinal);
+        var contextBlock = contextNeeded
+            ? BuildContextBlock(ragResults, _session.Summary)
+            : string.Empty;
 
-        if (systemPrompt.Contains("{context}", StringComparison.Ordinal))
-            systemPrompt = systemPrompt.Replace("{context}", contextBlock);
+        if (contextNeeded)
+            systemPrompt = systemPrompt.Replace(contextPlaceholder, contextBlock);
 
-        var userPrompt = BuildUserPrompt(question, contextBlock);
+        var userPrompt = BuildUserPrompt(question);
 
         var messages = new List<ChatMessage>
         {
@@ -98,21 +102,13 @@ public sealed class ChatService
     }
 
     /// <summary>
-    /// Monta o prompt do usuário combinando RAG + sessão + pergunta.
+    /// Monta o prompt do usuário (apenas a pergunta).
     /// </summary>
-    private static string BuildUserPrompt(string question, string contextBlock)
+    private static string BuildUserPrompt(string question)
     {
         var sb = new StringBuilder();
-
-        if (!string.IsNullOrWhiteSpace(contextBlock))
-        {
-            sb.AppendLine(contextBlock);
-            sb.AppendLine();
-        }
-
         sb.AppendLine("[User question]");
         sb.AppendLine(question);
-
         return sb.ToString();
     }
 

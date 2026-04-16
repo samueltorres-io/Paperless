@@ -23,7 +23,7 @@ public class ChatServiceTests
         public bool ThrowOnChat { get; set; } = false;
         public bool ThrowOnEmbed { get; set; } = false;
 
-        public List<string> ChatInputs { get; } = [];
+        public List<List<ChatMessage>> ChatInputs { get; } = [];
         public int EmbedCallCount { get; private set; }
         public int ChatCallCount { get; private set; }
 
@@ -45,7 +45,9 @@ public class ChatServiceTests
         {
             ct.ThrowIfCancellationRequested();
             ChatCallCount++;
-            ChatInputs.Add(messages.Last().Content);
+
+            var msgList = messages.ToList();
+            ChatInputs.Add(msgList);
 
             if (ThrowOnChat && (ThrowOnChatCall is null || ThrowOnChatCall == ChatCallCount))
                 throw new HttpRequestException("Ollama unreachable");
@@ -91,7 +93,7 @@ public class ChatServiceTests
     // ═══════════════════════ Factory ═══════════════════════
 
     private static (ChatService service, FakeOllama ollama, FakeRagModel rag, FakeSession session)
-        Build(string systemPrompt = "Você é um assistente.")
+        Build(string systemPrompt = "Você é um assistente.\n{context}")
     {
         var ollama  = new FakeOllama();
         var rag     = new FakeRagModel();
@@ -273,8 +275,8 @@ public class ChatServiceTests
 
         // A segunda chamada ao Chat (resumo) deve incluir o contexto anterior
         await WaitUntilAsync(() => ollama.ChatCallCount == 2 && ollama.ChatInputs.Count >= 2);
-        var summaryPrompt = ollama.ChatInputs[1]; // índice 1 = chamada de resumo
-        Assert.Contains("Usuário perguntou sobre faturas anteriormente.", summaryPrompt);
+        var summaryUserPrompt = ollama.ChatInputs[1][1].Content; // 1 = chamada de resumo; [1]=user
+        Assert.Contains("Usuário perguntou sobre faturas anteriormente.", summaryUserPrompt);
     }
 
     // ═══════════════════════ Tolerância a falha no resumo ═══════════════════════
@@ -354,9 +356,12 @@ public class ChatServiceTests
 
         await service.AskAsync("Qual é o prazo?");
 
-        var mainPrompt = ollama.ChatInputs[0];
-        Assert.Contains("O prazo de entrega é de 5 dias úteis.", mainPrompt);
-        Assert.Contains("docs/manual.txt", mainPrompt);
+        var mainSystemPrompt = ollama.ChatInputs[0][0].Content; // [0]=system; [1]=user
+        var mainUserPrompt = ollama.ChatInputs[0][1].Content;
+
+        Assert.DoesNotContain("O prazo de entrega é de 5 dias úteis.", mainUserPrompt);
+        Assert.Contains("O prazo de entrega é de 5 dias úteis.", mainSystemPrompt);
+        Assert.Contains("docs/manual.txt", mainSystemPrompt);
     }
 
     [Fact]
@@ -367,8 +372,8 @@ public class ChatServiceTests
 
         await service.AskAsync("pergunta qualquer");
 
-        var mainPrompt = ollama.ChatInputs[0];
-        Assert.DoesNotContain("[Relevant context from your files]", mainPrompt);
+        var mainSystemPrompt = ollama.ChatInputs[0][0].Content;
+        Assert.DoesNotContain("[Relevant context from your files]", mainSystemPrompt);
     }
 
     [Fact]
@@ -380,9 +385,9 @@ public class ChatServiceTests
 
         await service.AskAsync("continuando...");
 
-        var mainPrompt = ollama.ChatInputs[0];
-        Assert.Contains("Contexto da conversa anterior.", mainPrompt);
-        Assert.Contains("[Previous conversation context]", mainPrompt);
+        var mainSystemPrompt = ollama.ChatInputs[0][0].Content;
+        Assert.Contains("Contexto da conversa anterior.", mainSystemPrompt);
+        Assert.Contains("[Previous conversation context]", mainSystemPrompt);
     }
 
     [Fact]
@@ -394,8 +399,8 @@ public class ChatServiceTests
 
         await service.AskAsync("primeira pergunta");
 
-        var mainPrompt = ollama.ChatInputs[0];
-        Assert.DoesNotContain("[Previous conversation context]", mainPrompt);
+        var mainSystemPrompt = ollama.ChatInputs[0][0].Content;
+        Assert.DoesNotContain("[Previous conversation context]", mainSystemPrompt);
     }
 
     // ═══════════════════════ Helper — fake para cancelamento ═══════════════════════
