@@ -7,11 +7,11 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Paperless.Configuration;
-using Paperless.Modules.Ollama.Dto;
+using Paperless.Modules.Ollama;
 
 namespace Paperless.Modules.Ollama;
 
-public sealed class OllamaClient
+public sealed class OllamaClient : IOllamaClient
 {
     private readonly HttpClient _http;
     private readonly OllamaOptions _options;
