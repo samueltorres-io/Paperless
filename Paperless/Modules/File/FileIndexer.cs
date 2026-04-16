@@ -24,9 +24,12 @@ public sealed class FileIndexer : IDisposable
     private readonly FileRagModel _ragModel;
     private readonly FileIndexerOptions _options;
     private readonly string _watchPath;
+    private readonly CancellationTokenSource _cts = new();
 
     private FileSystemWatcher? _watcher;
     private bool _disposed;
+
+    private int _started = 0;
 
     /// <summary>
     /// Operações pendentes por arquivo (debounce).
@@ -56,6 +59,10 @@ public sealed class FileIndexer : IDisposable
     /// </summary>
     public async Task StartAsync(CancellationToken ct = default)
     {
+
+        if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
+            throw new InvalidOperationException("FileIndexer já foi iniciado.");
+
         Console.WriteLine($"[FileIndexer] Indexando pasta: {_watchPath}");
 
         await InitialScanAsync(ct);
@@ -197,7 +204,7 @@ public sealed class FileIndexer : IDisposable
                 await Task.Delay(_options.DebounceMs, cts.Token);
                 _pending.TryRemove(fullPath, out _);
 
-                await ProcessEventAsync(fullPath, action);
+                await ProcessEventAsync(fullPath, action, _cts.Token);
             }
             catch (TaskCanceledException)
             {
@@ -246,7 +253,7 @@ public sealed class FileIndexer : IDisposable
 
     // ═══════════════════════ Processamento ═══════════════════════
 
-    private async Task ProcessEventAsync(string fullPath, FileAction action)
+    private async Task ProcessEventAsync(string fullPath, FileAction action, CancellationToken ct = default)
     {
         var relPath = GetRelativePath(fullPath);
 
@@ -262,7 +269,7 @@ public sealed class FileIndexer : IDisposable
                 if (!System.IO.File.Exists(fullPath))
                     return;
 
-                await IndexFileAsync(fullPath, CancellationToken.None);
+                await IndexFileAsync(fullPath, ct);
                 Console.WriteLine($"[FileIndexer] Indexado: {relPath}");
                 break;
         }
@@ -356,7 +363,9 @@ public sealed class FileIndexer : IDisposable
 
         Stop();
         _watcher?.Dispose();
+        _cts.Dispose();
         _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     private enum FileAction

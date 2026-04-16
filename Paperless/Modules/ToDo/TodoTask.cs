@@ -41,9 +41,6 @@ public class TodoTask
 
     public void UpdateDescription(string description)
     {
-        if (string.IsNullOrWhiteSpace(description))
-            throw new ArgumentException("Description cannot be empty!");
-
         Description = description;
     }
 

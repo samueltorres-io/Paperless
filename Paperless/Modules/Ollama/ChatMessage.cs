@@ -5,10 +5,10 @@ namespace Paperless.Modules.Ollama;
 public sealed class ChatMessage
 {
     [JsonPropertyName("role")]
-    public string Role { get; set; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
 
     [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
+    public string Content { get; init; } = string.Empty;
 
     public ChatMessage() { }
 

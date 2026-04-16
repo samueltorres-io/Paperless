@@ -6,15 +6,24 @@ namespace Paperless.Modules.Session;
 /// Armazena um resumo compacto da conversa (não o histórico completo)
 /// para manter o contexto entre interações sem estourar a janela do modelo.
 /// Expira após o TTL configurado sem interação, limpando o contexto.
+///
+/// Thread-safe: todas as leituras e escritas são protegidas por lock.
 /// </summary>
-public sealed class SessionManager
+public sealed class SessionManager : ISessionManager
 {
     private readonly int _ttlMinutes;
+    private readonly object _lock = new();
+
     private DateTime _lastInteraction;
     private string _summary;
 
     public SessionManager(int ttlMinutes = 10)
     {
+        if (ttlMinutes <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(ttlMinutes),
+                "TTL must be greater than zero!");
+
         _ttlMinutes = ttlMinutes;
         _summary = string.Empty;
         _lastInteraction = DateTime.UtcNow;
@@ -24,27 +33,51 @@ public sealed class SessionManager
     /// Indica se a sessão expirou por falta de interação.
     /// </summary>
     public bool IsExpired
-        => (DateTime.UtcNow - _lastInteraction).TotalMinutes > _ttlMinutes;
+    {
+        get
+        {
+            lock (_lock)
+                return (DateTime.UtcNow - _lastInteraction).TotalMinutes > _ttlMinutes;
+        }
+    }
 
     /// <summary>
     /// Indica se há contexto de conversa armazenado.
     /// </summary>
     public bool HasContext
-        => !IsExpired && !string.IsNullOrWhiteSpace(_summary);
+    {
+        get
+        {
+            lock (_lock)
+                return (DateTime.UtcNow - _lastInteraction).TotalMinutes <= _ttlMinutes
+                    && !string.IsNullOrWhiteSpace(_summary);
+        }
+    }
 
     /// <summary>
     /// Retorna o resumo atual. String vazia se expirou ou não há contexto.
     /// </summary>
     public string Summary
-        => IsExpired ? string.Empty : _summary;
+    {
+        get
+        {
+            lock (_lock)
+                return (DateTime.UtcNow - _lastInteraction).TotalMinutes > _ttlMinutes
+                    ? string.Empty
+                    : _summary;
+        }
+    }
 
     /// <summary>
     /// Atualiza o resumo da sessão e renova o TTL.
     /// </summary>
     public void UpdateSummary(string summary)
     {
-        _summary = summary;
-        Touch();
+        lock (_lock)
+        {
+            _summary = summary ?? string.Empty;
+            _lastInteraction = DateTime.UtcNow;
+        }
     }
 
     /// <summary>
@@ -52,7 +85,8 @@ public sealed class SessionManager
     /// </summary>
     public void Touch()
     {
-        _lastInteraction = DateTime.UtcNow;
+        lock (_lock)
+            _lastInteraction = DateTime.UtcNow;
     }
 
     /// <summary>
@@ -60,7 +94,10 @@ public sealed class SessionManager
     /// </summary>
     public void Reset()
     {
-        _summary = string.Empty;
-        _lastInteraction = DateTime.UtcNow;
+        lock (_lock)
+        {
+            _summary = string.Empty;
+            _lastInteraction = DateTime.UtcNow;
+        }
     }
 }

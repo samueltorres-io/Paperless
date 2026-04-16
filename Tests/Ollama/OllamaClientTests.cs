@@ -15,6 +15,7 @@ public class OllamaClientTests : IDisposable
     private readonly Mock<HttpMessageHandler> _handlerMock;
     private readonly OllamaClient _client;
     private readonly OllamaOptions _options;
+    private readonly HttpClient _httpClient;
 
     public OllamaClientTests()
     {
@@ -27,30 +28,15 @@ public class OllamaClientTests : IDisposable
             TimeoutSeconds = 10,
         };
 
-        var httpClient = new HttpClient(_handlerMock.Object)
+        _httpClient = new HttpClient(_handlerMock.Object)
         {
-            BaseAddress = new Uri(_options.BaseUrl.TrimEnd('/') + "/"),
-            Timeout = Timeout.InfiniteTimeSpan,
+            BaseAddress = new Uri(_options.BaseUrl.TrimEnd('/') + "/")
         };
 
-        _client = CreateClientWithHandler(httpClient);
+        _client = new OllamaClient(_httpClient, _options);
     }
 
-    private OllamaClient CreateClientWithHandler(HttpClient http)
-    {
-        var client = new OllamaClient(_options);
-
-        var field = typeof(OllamaClient).GetField("_http",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        
-        var original = (HttpClient?)field?.GetValue(client);
-        original?.Dispose();
-
-        field?.SetValue(client, http);
-        return client;
-    }
-
-    public void Dispose() => _client.Dispose();
+    public void Dispose() => _httpClient.Dispose();
 
     private void SetupResponse(HttpStatusCode status, object? body = null)
     {
@@ -269,13 +255,5 @@ public class OllamaClientTests : IDisposable
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => _client.EmbedAsync("texto"));
-    }
-
-    [Fact]
-    public void Dispose_CalledTwice_ShouldNotThrow()
-    {
-        var client = new OllamaClient(_options);
-        client.Dispose();
-        client.Dispose();
     }
 }

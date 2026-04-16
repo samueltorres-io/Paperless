@@ -16,9 +16,9 @@ namespace Paperless.Modules.Chat;
 /// </summary>
 public sealed class ChatService
 {
-    private readonly OllamaClient _ollama;
-    private readonly FileRagModel _ragModel;
-    private readonly SessionManager _session;
+    private readonly IOllamaClient _ollama;
+    private readonly IFileRagModel _ragModel;
+    private readonly ISessionManager _session;
     private readonly string _systemPrompt;
 
     /* Configurações de busca RAG */
@@ -26,15 +26,15 @@ public sealed class ChatService
     private const double RagMinScore = 0.3;
 
     public ChatService(
-        OllamaClient ollama,
-        FileRagModel ragModel,
-        SessionManager session,
+        IOllamaClient ollama,
+        IFileRagModel ragModel,
+        ISessionManager session,
         string systemPrompt)
     {
-        _ollama = ollama;
-        _ragModel = ragModel;
-        _session = session;
-        _systemPrompt = systemPrompt;
+        _ollama       = ollama       ?? throw new ArgumentNullException(nameof(ollama));
+        _ragModel     = ragModel     ?? throw new ArgumentNullException(nameof(ragModel));
+        _session      = session      ?? throw new ArgumentNullException(nameof(session));
+        _systemPrompt = systemPrompt ?? throw new ArgumentNullException(nameof(systemPrompt));
     }
 
     /// <summary>
@@ -42,11 +42,14 @@ public sealed class ChatService
     /// </summary>
     public async Task<string> AskAsync(string question, CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(question))
+            throw new ArgumentException("A pergunta não pode ser vazia.", nameof(question));
+
         /* 1 — Sessão expirou? Limpa contexto */
         if (_session.IsExpired)
             _session.Reset();
-
-        _session.Touch();
+        else
+            _session.Touch();
 
         /* 2 — Gerar embedding da pergunta */
         var queryEmbedding = await _ollama.EmbedAsync(question, ct);
@@ -54,26 +57,36 @@ public sealed class ChatService
         /* 3 — Buscar chunks similares (RAG) */
         var ragResults = _ragModel.SearchSimilar(queryEmbedding, RagTopK, RagMinScore);
 
-        /* 4 — Montar prompt */
-        var userPrompt = BuildUserPrompt(question, ragResults, _session.Summary);
+        /* 4 — Montar prompt (inclui substituição do {context} do system prompt) */
+        var contextBlock = BuildContextBlock(ragResults, _session.Summary);
+        var systemPrompt = _systemPrompt;
+
+        if (systemPrompt.Contains("{context}", StringComparison.Ordinal))
+            systemPrompt = systemPrompt.Replace("{context}", contextBlock);
+
+        var userPrompt = BuildUserPrompt(question, contextBlock);
 
         var messages = new List<ChatMessage>
         {
-            ChatMessage.System(_systemPrompt),
+            ChatMessage.System(systemPrompt),
             ChatMessage.User(userPrompt),
         };
 
         /* 5 — Obter resposta do modelo */
         var answer = await _ollama.ChatAsync(messages, ct);
 
-        /* 6 — Atualizar resumo da sessão (fire-and-forget tolerante a falha) */
+        /* 6 — Atualizar resumo da sessão (tolerante a falha, mas não a cancelamento) */
         try
         {
             await UpdateSessionSummaryAsync(question, answer, ct);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch
         {
-            /* Se falhar, a sessão continua com o resumo anterior. */
+            /* Falha no resumo não impede retornar a resposta ao usuário. */
         }
 
         return answer;
@@ -82,19 +95,33 @@ public sealed class ChatService
     /// <summary>
     /// Monta o prompt do usuário combinando RAG + sessão + pergunta.
     /// </summary>
-    private static string BuildUserPrompt(
-        string question,
+    private static string BuildUserPrompt(string question, string contextBlock)
+    {
+        var sb = new StringBuilder();
+
+        if (!string.IsNullOrWhiteSpace(contextBlock))
+        {
+            sb.AppendLine(contextBlock);
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("[User question]");
+        sb.AppendLine(question);
+
+        return sb.ToString();
+    }
+
+    private static string BuildContextBlock(
         List<(Vector.Entity.DocumentChunk Chunk, double Score)> ragResults,
         string sessionSummary)
     {
         var sb = new StringBuilder();
 
-        /* Contexto RAG */
         if (ragResults.Count > 0)
         {
             sb.AppendLine("[Relevant context from your files]");
 
-            foreach (var (chunk, score) in ragResults)
+            foreach (var (chunk, _) in ragResults)
             {
                 sb.AppendLine($"--- {chunk.FilePath} (chunk {chunk.ChunkIndex}) ---");
                 sb.AppendLine(chunk.Content);
@@ -102,7 +129,6 @@ public sealed class ChatService
             }
         }
 
-        /* Contexto de sessão */
         if (!string.IsNullOrWhiteSpace(sessionSummary))
         {
             sb.AppendLine("[Previous conversation context]");
@@ -110,11 +136,7 @@ public sealed class ChatService
             sb.AppendLine();
         }
 
-        /* Pergunta do usuário */
-        sb.AppendLine("[User question]");
-        sb.AppendLine(question);
-
-        return sb.ToString();
+        return sb.ToString().TrimEnd();
     }
 
     /// <summary>
@@ -146,7 +168,6 @@ public sealed class ChatService
         };
 
         var summary = await _ollama.ChatAsync(messages, ct);
-
         _session.UpdateSummary(summary);
     }
 
@@ -155,9 +176,6 @@ public sealed class ChatService
     /// </summary>
     private static string Truncate(string text, int maxLength)
     {
-        if (text.Length <= maxLength)
-            return text;
-
-        return text[..maxLength] + "...";
+        return text.Length <= maxLength ? text : text[..maxLength] + "...";
     }
 }
