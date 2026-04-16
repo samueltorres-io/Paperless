@@ -1,131 +1,211 @@
-# Paperless
+<div align="center">
 
-**Paperless** é um assistente CLI em C# .NET que roda 100% `offline`, usando `Ollama` como motor LLM.
-Ele le arquivos de uma pasta local, vetoriza o conteúdo para RAG, gerencia *TODOs* e mantém sessões com TTL.
+```
+██████╗  █████╗ ██████╗ ███████╗██████╗ ██╗     ███████╗███████╗███████╗
+██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗██║     ██╔════╝██╔════╝██╔════╝
+██████╔╝███████║██████╔╝█████╗  ██████╔╝██║     █████╗  ███████╗███████╗
+██╔═══╝ ██╔══██║██╔═══╝ ██╔══╝  ██╔══██╗██║     ██╔══╝  ╚════██║╚════██║
+██║     ██║  ██║██║     ███████╗██║  ██║███████╗███████╗███████║███████║
+╚═╝     ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚══════╝
+```
+
+**Seu assistente pessoal, 100% offline. Zero nuvem. Zero telemetria. Zero concessões.**
+
+[![.NET](https://img.shields.io/badge/.NET_10-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![Ollama](https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-blue?style=for-the-badge)]()
+
+</div>
 
 ---
 
-## Stack Tecnológica
+## 🧠 O que é o Paperless?
 
-| Componente | Tecnologia | Justificativa |
+**Paperless** é uma **LLM local e privada via CLI**, escrita em **C# .NET 10**, que roda inteiramente na sua máquina — sem precisar de internet, sem enviar dados para servidores externos, sem assinaturas.
+
+A ideia nasceu de uma necessidade simples: ter um **assistente inteligente** que conhece seus arquivos, seus projetos e suas tarefas — e que responde perguntas sobre eles de forma direta, rápida e **completamente offline**.
+
+> *"Como ter o seu próprio ChatGPT particular, que só lê o que você autorizar e nunca fala com ninguém."*
+
+---
+
+## ✨ Funcionalidades
+
+- 🔍 **RAG (Retrieval-Augmented Generation)** — indexa sua pasta local e usa **busca semântica por cosseno** para encontrar os trechos mais relevantes antes de responder
+- 📋 **Gerenciador de TODO** — crie, liste e conclua tarefas via CLI; o arquivo de tarefas também é indexado pelo RAG automaticamente
+- 💬 **Sessão com TTL** — mantém contexto da conversa em memória com expiração de **10 minutos** por inatividade
+- 👁️ **File Watcher** — monitora a pasta em tempo real; novos arquivos são **vetorizados automaticamente** sem reiniciar
+- 🏃 **Single Binary** — compilável como executável único via **AOT publish** do .NET
+- 🔒 **100% Privado** — nenhum dado sai da sua máquina. Jamais.
+
+---
+
+## 🏗️ Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      CLI REPL Loop                          │
+│               (input → process → output)                    │
+├───────────┬────────────┬─────────────────┬──────────────────┤
+│  Chat     │  TODO      │   RAG Search    │  Session         │
+│  Service  │  Manager   │   Engine        │  Manager (TTL)   │
+├───────────┴────────────┴────────┬────────┴──────────────────┤
+│                                 │                            │
+│     Ollama HTTP Client          │  Vector Store (SQLite)     │
+│  /api/chat · /api/embeddings    │  embeddings + chunks       │
+├─────────────────────────────────┴────────────────────────────┤
+│                  File Watcher + Indexer                      │
+│          (monitora pasta → chunka → vetoriza)                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+O fluxo de uma pergunta segue 6 etapas:
+
+1. **Verifica sessão** — expirou? Limpa o contexto e recomeça
+2. **Gera embedding** da pergunta via `nomic-embed-text`
+3. **Busca RAG** — recupera os top-K chunks com maior similaridade cosseno
+4. **Monta o prompt** — injeta o contexto semântico no system prompt
+5. **Chama o Ollama** — obtém a resposta do modelo de chat
+6. **Atualiza o resumo** da sessão via chamada extra ao LLM
+
+---
+
+## 🛠️ Stack Tecnológica
+
+| Componente | Tecnologia | Por quê |
 |---|---|---|
-| Runtime | .NET 10 | Cross-platform, AOT publish, single binary |
-| LLM Engine | Ollama (background) | Já roda localmente, API HTTP simples |
-| Modelo Chat | `phi3:mini` | Leve e roda bem em Hardware simples |
-| Modelo Embedding | `nomic-embed-text` | 274MB, rápido, boa qualidade |
-| Banco Vetorial | SQLite + cosseno em C# | Zero dependência nativa, cross-platform |
-| File Watcher | `System.IO.FileSystemWatcher` | Nativo do .NET, event-driven |
-| CLI Framework | `System.Console` puro | Sem dependência extra |
+| Runtime | **.NET 10** | Cross-platform, AOT publish, single binary |
+| LLM Engine | **Ollama** | Roda localmente, API HTTP simples |
+| Modelo Chat | `qwen3.5:0.8b` | Leve, roda bem em hardware modesto |
+| Modelo Embedding | `nomic-embed-text` | 274MB, rápido, excelente qualidade semântica |
+| Banco Vetorial | **SQLite + cosseno em C#** | Zero dependência nativa, cross-platform |
+| File Watcher | `FileSystemWatcher` | Nativo do .NET, event-driven |
+| CLI | `System.Console` puro | Sem dependências extras |
 
 ---
 
-## Arquitetura de Componentes
+## 📦 Pré-requisitos
 
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Ollama](https://ollama.com/) instalado e rodando localmente
+- Modelos baixados:
+
+```bash
+ollama pull qwen3.5:0.8b
+ollama pull nomic-embed-text
 ```
-┌─────────────────────────────────────────────────────┐
-│                    CLI REPL Loop                     │
-│              (input → process → output)              │
-├──────────┬──────────┬───────────────┬───────────────┤
-│  Chat    │  TODO    │  RAG Search   │  Session      │
-│  Service │  Manager │  Engine       │  Manager      │
-├──────────┴──────────┴───────┬───────┴───────────────┤
-│                             │                        │
-│      Ollama HTTP Client     │   Vector Store (SQLite) │
-│    /api/chat + /api/embed   │   embeddings + chunks   │
-├─────────────────────────────┴────────────────────────┤
-│              File Watcher + Indexer                   │
-│        (monitora pasta → chunka → vetoriza)           │
-└──────────────────────────────────────────────────────┘
-```
+
+> **Nota:** Em releases futuras, a instalação do Ollama e o pull dos modelos serão feitos automaticamente pelo instalador.
 
 ---
 
-## ToDO Module
+## 🚀 Como usar
 
-**Responsabilidade:** CRUD de tarefas em arquivo JSON.
- 
-**Localização:** `...`
- 
-**Modelo:**
+### 1. Clone e configure
+
+```bash
+git clone https://github.com/seu-usuario/paperless.git
+cd paperless
+```
+
+Edite o `appsettings.json` para apontar para a sua pasta de dados:
+
 ```json
-[
-  {
-    "id": "a1b2c3",
-    "title": "Revisar PR do backend",
-    "text": "Desenvolver os testes unitários para o módulo de RAG",
-    "criticidade": "alta"
-  }
-]
-```
-
-**Comandos CLI:**
-```
-/todo add "título" "descrição" 1/2/3/4/5
-/todo list ?(1/2/3/4/5)
-/todo done <id>
-/todo remove <id>
-```
- 
-**Detalhes:**
-- `id` → primeiros 6 chars de `Guid.NewGuid()`
-- Salvar com `System.Text.Json` formatado (indented)
-- O `todos.json` **TAMBÉM** é indexado pelo RAG (é um arquivo na pasta!)
-- Então quando o user perguntar "quais minhas tarefas?", o RAG já puxa.
-
----
-
-## Ollama Module
-
-**Responsabilidade:** Comunicação HTTP com o Ollama local.
-
-> Nas releases, configuramos uma instalação automática do ollama se não existir no sistema e realizamos o pull do modelo llm
-
-**Endpoints usados:**
-- `POST http://localhost:11434/api/chat` — gerar respostas
-- `POST http://localhost:11434/api/embeddings` — gerar vetores
- 
-**Fluxo:**
-```
-[User Input] → OllamaClient.ChatAsync(messages[]) → resposta string
-[Texto]      → OllamaClient.EmbedAsync(text) → float[] (vetor)
-```
- 
-**Detalhes técnicos:**
-- Usar `HttpClient` singleton (reusar conexão)
-- Chat: enviar `{ model, messages, stream: false }` — sem streaming para simplificar
-- Embed: enviar `{ model: "nomic-embed-text", prompt: text }` → retorna `embedding: float[]`
-- Timeout de 120s (modelos pequenos podem demorar no primeiro load)
- 
----
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-2. Pipeline RAG - TextChunker → CosineSimilarity → VectorStore → FileIndexer.
-
-
-3. ChatService + SessionManager — orquestra RAG + LLM + histórico de sessão via cache.
-
-Ideia base:
 {
-  Eu estou anotando as minhas tarefas e projetos(rascunhos) em folhas de papel! Mas gostaria de ter uma llm leve e local, no meu notebook i7-12 16gb, para em auxiliar! Seria uma llm que não se conecta a internet e tem acesso a apenas uma pasta em específico, onde lá, deixo armazenado, algumas ideas, arquivos e projetos! Ela seria de grande ajuda, pois dentro dessa pasta, eu teria um .json com as tarefas que eu devo fazer! Essa llm poderia verificar os meus projetos, arquivos e até essa minha ToDo, para me ajudar e tirar algumas dúvidas, apenas! Ela não mexeria nos arquivos, apenas iria lê-los para obter informações, de forma simples e teria um cache de sessão em memória, com um ttl de 10 minutos, caso não houvesse interação!
+  "Storage": {
+    "BaseFolder": "Paperless",
+    "UserFolderPath": "data/"
+  },
+  "Ollama": {
+    "Model": "qwen3.5:0.8b",
+    "EmbeddingModel": "nomic-embed-text"
+  }
 }
+```
+
+### 2. Execute
+
+```bash
+dotnet run
+```
+
+### 3. Converse
+
+```
+❯ Quais são minhas tarefas de alta prioridade?
+❯ O que eu anotei sobre o projeto X?
+❯ /todo add "Revisar PR" "Checar os testes unitários" 1
+❯ /todo list
+❯ /todo done a1b2c3
+```
+
+---
+
+## 📋 Comandos TODO
+
+| Comando | Descrição |
+|---|---|
+| `/todo add "título" "descrição" <1-5>` | Cria uma nova tarefa com prioridade |
+| `/todo list` | Lista todas as tarefas |
+| `/todo list <1-5>` | Filtra por prioridade |
+| `/todo done <id>` | Marca tarefa como concluída |
+| `/todo remove <id>` | Remove uma tarefa |
+
+> As tarefas ficam salvas em `tasks.json` e são **automaticamente indexadas pelo RAG** — você pode perguntar sobre elas em linguagem natural.
+
+---
+
+## 🗂️ Estrutura de Pastas
+
+```
+~/Paperless/
+├── system/
+│   ├── tasks.json        ← suas tarefas (TODO)
+│   └── paperless.db      ← banco vetorial SQLite
+└── data/                 ← sua pasta monitorada
+    ├── projetos/
+    ├── ideias.md
+    └── notas.txt
+```
+
+---
+
+## 🔐 Privacidade — a promessa
+
+**Nenhum dado sai da sua máquina.**
+
+- Sem analytics, sem telemetria, sem logs remotos
+- O modelo roda via **Ollama local** — sem chamadas para OpenAI, Anthropic ou qualquer API externa
+- Seus arquivos são indexados localmente no **SQLite** — nada é enviado para nenhum servidor
+- Funciona **100% offline** após o setup inicial
+
+---
+
+## 🗺️ Roadmap
+
+- [x] RAG com busca semântica por cosseno
+- [x] Gerenciador de TODO com CLI
+- [x] Sessão em memória com TTL
+- [x] File Watcher com reindexação automática
+- [ ] Instalador automático do Ollama
+- [ ] Pull automático dos modelos na primeira execução
+- [ ] Suporte a PDFs e imagens na indexação
+- [ ] Interface TUI (Terminal UI) com [Spectre.Console](https://spectreconsole.net/)
+- [ ] Exportação de TODO para Markdown
+
+---
+
+## 🤝 Contribuindo
+
+Contribuições são bem-vindas! Abra uma **issue** para bugs ou sugestões, ou envie um **pull request** diretamente.
+
+---
+
+<div align="center">
+
+Feito com ☕ e a vontade de não depender de nuvem nenhuma.
+
+**[⬆ Voltar ao topo](#)**
+
+</div>
