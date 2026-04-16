@@ -40,7 +40,7 @@ public class ChatServiceTests
             return Task.FromResult(EmbedResult);
         }
 
-        public Task<string> ChatAsync(IList<ChatMessage> messages, CancellationToken ct = default)
+        public Task<string> ChatAsync(IEnumerable<ChatMessage> messages, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
             ChatCallCount++;
@@ -311,14 +311,9 @@ public class ChatServiceTests
     {
         // CancellationToken cancelado durante a etapa de resumo deve propagar,
         // não ser silenciado pelo catch genérico.
-        var (service, ollama, _, _) = Build();
         using var cts = new CancellationTokenSource();
 
-        int callCount = 0;
-        ollama.ChatResult = "resposta";
-
         // Cancela na segunda chamada (resumo)
-        // Sobrescrevemos com uma versão que cancela no segundo ChatAsync
         var cancellingOllama = new CancelOnSecondCallOllama(cts);
         var svc = new ChatService(cancellingOllama, new FakeRagModel(), new FakeSession(), "prompt");
 
@@ -398,7 +393,7 @@ public class ChatServiceTests
         public Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
             => Task.FromResult(new float[] { 0.1f });
 
-        public Task<string> ChatAsync(IList<ChatMessage> messages, CancellationToken ct = default)
+        public Task<string> ChatAsync(IEnumerable<ChatMessage> messages, CancellationToken ct = default)
         {
             _chatCalls++;
             if (_chatCalls == 2) cts.Cancel();
