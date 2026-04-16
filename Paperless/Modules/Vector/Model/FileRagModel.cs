@@ -6,7 +6,7 @@ using Paperless.Modules.Vector.Util;
 
 namespace Paperless.Modules.Vector.Model;
 
-public class FileRagModel : DataContext
+public class FileRagModel : DataContext, IFileRagModel
 {
     /// <summary>
     /// Recebe o caminho completo do banco SQLite.
