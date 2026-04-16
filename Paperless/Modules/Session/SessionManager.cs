@@ -9,7 +9,7 @@ namespace Paperless.Modules.Session;
 ///
 /// Thread-safe: todas as leituras e escritas são protegidas por lock.
 /// </summary>
-public sealed class SessionManager
+public sealed class SessionManager : ISessionManager
 {
     private readonly int _ttlMinutes;
     private readonly object _lock = new();
