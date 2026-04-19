@@ -8,6 +8,7 @@ using Paperless.Modules.File;
 using Paperless.Modules.Ollama;
 using Paperless.Modules.Session;
 using Paperless.Modules.ToDo;
+using Paperless.Modules.Setup;
 using Spectre.Console;
 
 internal class Program
@@ -19,8 +20,25 @@ internal class Program
     private const string Danger  = "#EF476F";
     private const string Muted   = "grey62";
 
-    static async Task Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
+
+        if (args.Length > 0)
+        {
+            switch (args[0])
+            {
+                case "--version":
+                case "-v":
+                    PrintVersion();
+                    return 0;
+
+                case "--help":
+                case "-h":
+                    PrintCliHelp();
+                    return 0;
+            }
+        }
+
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
         /* ══════════════ 1. Configuração ══════════════ */
@@ -42,34 +60,26 @@ internal class Program
 
         /* ══════════════ 4. Serviços ══════════════ */
 
-        using var ollamaHttp = new System.Net.Http.HttpClient();
-        var ollama = new OllamaClient(ollamaHttp, settings.Ollama);
+        using var ollamaHttp = new System.Net.Http.HttpClient
+        {
+            Timeout = TimeSpan.FromMinutes(30),
+        };
 
-        var ragModel    = new FileRagModel(settings.Storage.GetFullDatabasePath());
-        var todoRepo    = new TodoRepository(settings.Storage.GetFullTasksPath());
-        var todoManager = new TodoManager(todoRepo);
-        var session     = new SessionManager(ttlMinutes: 10);
+        var bootstrap = new OllamaBootstrap(ollamaHttp, settings.Ollama.BaseUrl);
+        var wizard    = new SetupWizard(
+            bootstrap,
+            settings.Ollama.Model,
+            settings.Ollama.EmbeddingModel);
+
+        if (!await wizard.RunAsync()) return 1;
 
         /* ══════════════ 5. Health check do Ollama ══════════════ */
 
-        bool healthy = false;
-
-        await AnsiConsole.Status()
-            .Spinner(Spinner.Known.Dots)
-            .SpinnerStyle(Style.Parse($"{Primary} bold"))
-            .StartAsync("Verificando conexão com Ollama...", async _ =>
-            {
-                healthy = await ollama.HealthCheckAsync();
-            });
-
-        if (!healthy)
-        {
-            AnsiConsole.MarkupLine($"  [{Danger}]✗[/] Ollama não está rodando.");
-            AnsiConsole.MarkupLine($"  [{Muted}]Execute [bold]ollama serve[/] e tente novamente.[/]");
-            return;
-        }
-
-        AnsiConsole.MarkupLine($"  [{Accent}]✓[/] Ollama conectado");
+        var ollama = new OllamaClient(ollamaHttp, settings.Ollama);
+        var ragModel = new FileRagModel(settings.Storage.GetFullDatabasePath());
+        var todoRepo = new TodoRepository(settings.Storage.GetFullTasksPath());
+        var todoManager = new TodoManager(todoRepo);
+        var session = new SessionManager(ttlMinutes: 10);
 
         /* ══════════════ 6. System prompt ══════════════ */
 
@@ -121,6 +131,7 @@ internal class Program
         indexer.Stop();
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"  [{Primary}]Até mais! 👋[/]");
+        return 0;
     }
 
     // ═══════════════════════ REPL ═══════════════════════
@@ -299,6 +310,16 @@ internal class Program
             case "/todo":
                 HandleTodoCommand(parts, todo);
                 return Task.FromResult(CommandResult.Handled);
+
+            /*
+            case "/setup":
+                var rerun = new SetupWizard(
+                    bootstrap,
+                    settings.Ollama.Model,
+                    settings.Ollama.EmbeddingModel);
+                await rerun.RunAsync();
+                return CommandResult.Handled;
+            */
 
             default:
                 return Task.FromResult(CommandResult.NotHandled);
@@ -551,6 +572,34 @@ internal class Program
         AnsiConsole.WriteLine();
         AnsiConsole.Write(panel);
         AnsiConsole.WriteLine();
+    }
+
+    private static void PrintVersion()
+    {
+        // Assembly.GetName().Version pega o que foi passado em
+        // -p:Version=... no dotnet publish. Fallback para "dev" quando
+        // rodando via `dotnet run` (nenhuma versão gravada).
+        var asm = typeof(Program).Assembly;
+        var version = asm.GetName().Version;
+
+        // Se veio "0.0.0.0", é porque nada foi setado — exibe "dev".
+        var versionString = (version is null || version.ToString() == "0.0.0.0")
+            ? "dev"
+            : version.ToString(3);
+
+        Console.WriteLine($"paperless {versionString}");
+    }
+
+    private static void PrintCliHelp()
+    {
+        Console.WriteLine("paperless — assistente pessoal 100% offline");
+        Console.WriteLine();
+        Console.WriteLine("Uso:");
+        Console.WriteLine("  paperless              Inicia o REPL interativo");
+        Console.WriteLine("  paperless --version    Mostra a versão");
+        Console.WriteLine("  paperless --help       Mostra esta ajuda");
+        Console.WriteLine();
+        Console.WriteLine("No REPL, use /help para ver os comandos disponíveis.");
     }
 
     // ═══════════════════════ Helpers ═══════════════════════

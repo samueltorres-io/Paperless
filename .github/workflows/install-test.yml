@@ -1,0 +1,188 @@
+name: Install Test
+
+# Valida, end-to-end, que:
+#   1. O projeto compila em modo self-contained para cada plataforma
+#   2. O script de instalação consegue extrair e colocar o binário no lugar
+#   3. O binário executa (`paperless --version`) sem Ollama presente
+#
+# Não testa o fluxo completo do SetupWizard (que exigiria Ollama rodando e
+# downloads pesados no runner).
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'Paperless/**'
+      - '.github/workflows/install-test.yml'
+  pull_request:
+    paths:
+      - 'Paperless/**'
+      - '.github/workflows/install-test.yml'
+  workflow_dispatch:
+
+jobs:
+  test-install:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: tar.gz
+            ext: ''
+          - os: macos-latest
+            rid: osx-arm64
+            archive: tar.gz
+            ext: ''
+          - os: windows-latest
+            rid: win-x64
+            archive: zip
+            ext: '.exe'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # ───────────────────────── 1. Build ─────────────────────────
+
+      - name: Publish self-contained
+        working-directory: ./Paperless
+        run: >
+          dotnet publish Paperless.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:Version=0.0.0-ci
+          -o ./publish
+
+      # ───────────────────────── 2. Package ───────────────────────
+
+      - name: Package (Unix)
+        if: matrix.archive == 'tar.gz'
+        working-directory: ./Paperless/publish
+        shell: bash
+        run: |
+          if [ -f "Paperless" ]; then mv Paperless paperless; fi
+          chmod +x paperless
+          tar -czf "${{ github.workspace }}/paperless-${{ matrix.rid }}.tar.gz" \
+              paperless appsettings.json skill.md
+
+      - name: Package (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        working-directory: ./Paperless/publish
+        run: |
+          if (Test-Path "Paperless.exe") { Rename-Item "Paperless.exe" "paperless.exe" }
+          $dest = "${{ github.workspace }}\paperless-${{ matrix.rid }}.zip"
+          Compress-Archive -Path paperless.exe, appsettings.json, skill.md `
+                           -DestinationPath $dest -Force
+
+      # ────────────────────── 3. Inspect archive ──────────────────
+
+      - name: Inspect archive (Unix)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          ARCHIVE="paperless-${{ matrix.rid }}.tar.gz"
+          test -f "$ARCHIVE" || { echo "::error::archive missing"; exit 1; }
+          echo "Contents:"
+          tar -tzf "$ARCHIVE"
+          echo "Size: $(du -h "$ARCHIVE" | cut -f1)"
+
+      - name: Inspect archive (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $archive = "paperless-${{ matrix.rid }}.zip"
+          if (-not (Test-Path $archive)) { throw "archive missing" }
+          Write-Host "Contents:"
+          Expand-Archive -Path $archive -DestinationPath "$env:TEMP\inspect" -Force
+          Get-ChildItem "$env:TEMP\inspect"
+          Remove-Item -Recurse -Force "$env:TEMP\inspect"
+
+      # ──────────────────── 4. Run install script ─────────────────
+
+      - name: Run install.sh
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          PAPERLESS_LOCAL_ARCHIVE: ${{ github.workspace }}/paperless-${{ matrix.rid }}.tar.gz
+          PAPERLESS_INSTALL_DIR: ${{ runner.temp }}/paperless-install
+          PAPERLESS_SKIP_OLLAMA: '1'
+        run: bash Paperless/install/install.sh
+
+      - name: Run install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          PAPERLESS_LOCAL_ARCHIVE: ${{ github.workspace }}\paperless-${{ matrix.rid }}.zip
+          PAPERLESS_INSTALL_DIR: ${{ runner.temp }}\paperless-install
+          PAPERLESS_SKIP_OLLAMA: '1'
+        run: ./Paperless/install/install.ps1
+
+      # ────────────────── 5. Smoke test binário ───────────────────
+
+      - name: Smoke test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          BIN="${{ runner.temp }}/paperless-install/paperless"
+          test -x "$BIN" || { echo "::error::binary not executable at $BIN"; ls -la "${{ runner.temp }}/paperless-install"; exit 1; }
+          OUTPUT=$("$BIN" --version)
+          echo "Output: $OUTPUT"
+          echo "$OUTPUT" | grep -q "paperless" \
+              || { echo "::error::unexpected output"; exit 1; }
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bin = "${{ runner.temp }}\paperless-install\paperless.exe"
+          if (-not (Test-Path $bin)) { throw "binary missing at $bin" }
+          $output = & $bin --version
+          Write-Host "Output: $output"
+          if ($output -notmatch 'paperless') { throw "unexpected output" }
+
+      # ────────────────── 6. Verify install layout ────────────────
+
+      - name: Verify install layout (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          DIR="${{ runner.temp }}/paperless-install"
+          for f in paperless appsettings.json skill.md; do
+            test -f "$DIR/$f" \
+                || { echo "::error::missing $f"; ls -la "$DIR"; exit 1; }
+          done
+          echo "Install layout OK"
+
+      - name: Verify install layout (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = "${{ runner.temp }}\paperless-install"
+          foreach ($f in 'paperless.exe','appsettings.json','skill.md') {
+            if (-not (Test-Path "$dir\$f")) { throw "missing $f" }
+          }
+          Write-Host "Install layout OK"
+
+  # ─── Job separado: rodar os unit tests ─────────────────────────
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run tests
+        run: dotnet test --configuration Release --logger "console;verbosity=normal"

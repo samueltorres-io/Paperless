@@ -188,8 +188,9 @@ dotnet run
 - [x] Gerenciador de TODO com CLI
 - [x] Sessão em memória com TTL
 - [x] File Watcher com reindexação automática
-- [ ] Instalador automático do Ollama
-- [ ] Pull automático dos modelos na primeira execução
+- [x] Instalador automático do Ollama
+- [x] Pull automático dos modelos na primeira execução
+- [x] Instalador Windows/Linux/Mac
 - [ ] Suporte a PDFs e imagens na indexação
 - [x] Interface TUI (Terminal UI) com [Spectre.Console](https://spectreconsole.net/)
 - [ ] Exportação de TODO para Markdown

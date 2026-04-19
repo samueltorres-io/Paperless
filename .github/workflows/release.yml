@@ -1,0 +1,157 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag (ex: v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    name: Build · ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: tar.gz
+          - os: ubuntu-22.04-arm
+            rid: linux-arm64
+            archive: tar.gz
+          - os: macos-13
+            rid: osx-x64
+            archive: tar.gz
+          - os: macos-latest
+            rid: osx-arm64
+            archive: tar.gz
+          - os: windows-latest
+            rid: win-x64
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Compute version
+        id: version
+        shell: bash
+        run: |
+          RAW="${{ env.RAW_TAG }}"
+          VERSION="${RAW#v}"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Restore
+        working-directory: ./Paperless
+        run: dotnet restore Paperless.csproj -r ${{ matrix.rid }}
+
+      # Single-file self-contained (sem AOT). Decisão explícita:
+      # - EF Core Sqlite não é AOT-safe
+      # - Configuration.Binder sem source generator quebra silenciosamente
+      # - Spectre.Console 0.49 gera warnings de trim
+      # Quando o projeto estiver AOT-ready, trocar -p:PublishAot=true e
+      # remover PublishSingleFile + IncludeNativeLibrariesForSelfExtract.
+      - name: Publish
+        working-directory: ./Paperless
+        run: >
+          dotnet publish Paperless.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=embedded
+          -p:Version=${{ steps.version.outputs.value }}
+          -o ./publish
+
+      - name: Package (Unix)
+        if: matrix.archive == 'tar.gz'
+        working-directory: ./Paperless/publish
+        shell: bash
+        run: |
+          # O single-file do .NET respeita AssemblyName (já é "paperless"
+          # no csproj), mas deixamos a normalização como cinto + suspensórios.
+          if [ -f "Paperless" ]; then mv Paperless paperless; fi
+          if [ ! -f "paperless" ]; then
+            echo "::error::binário paperless não encontrado em publish/"
+            ls -la
+            exit 1
+          fi
+          chmod +x paperless
+          tar -czf "${{ github.workspace }}/paperless-${{ matrix.rid }}.tar.gz" \
+              paperless appsettings.json skill.md
+          cd "${{ github.workspace }}"
+          sha256sum "paperless-${{ matrix.rid }}.tar.gz" \
+              > "paperless-${{ matrix.rid }}.tar.gz.sha256"
+
+      - name: Package (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        working-directory: ./Paperless/publish
+        run: |
+          if (Test-Path "Paperless.exe") { Rename-Item "Paperless.exe" "paperless.exe" }
+          if (-not (Test-Path "paperless.exe")) {
+            Write-Error "binário paperless.exe não encontrado em publish/"
+            Get-ChildItem
+            exit 1
+          }
+          $dest = "${{ github.workspace }}\paperless-${{ matrix.rid }}.zip"
+          Compress-Archive -Path paperless.exe, appsettings.json, skill.md `
+                           -DestinationPath $dest -Force
+          cd "${{ github.workspace }}"
+          $hash = Get-FileHash "paperless-${{ matrix.rid }}.zip" -Algorithm SHA256
+          "$($hash.Hash.ToLower())  paperless-${{ matrix.rid }}.zip" |
+              Out-File -Encoding ascii "paperless-${{ matrix.rid }}.zip.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paperless-${{ matrix.rid }}
+          path: |
+            paperless-${{ matrix.rid }}.*
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Assemble release folder
+        run: |
+          mkdir -p release
+          find artifacts -type f \
+              \( -name 'paperless-*.tar.gz*' -o -name 'paperless-*.zip*' \) \
+              -exec cp {} release/ \;
+          cp Paperless/install/install.sh  release/install.sh
+          cp Paperless/install/install.ps1 release/install.ps1
+          ls -la release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RAW_TAG }}
+          generate_release_notes: true
+          files: release/*
+          draft: false
+          prerelease: false
