@@ -191,7 +191,7 @@ dotnet run
 - [ ] Instalador automático do Ollama
 - [ ] Pull automático dos modelos na primeira execução
 - [ ] Suporte a PDFs e imagens na indexação
-- [ ] Interface TUI (Terminal UI) com [Spectre.Console](https://spectreconsole.net/)
+- [x] Interface TUI (Terminal UI) com [Spectre.Console](https://spectreconsole.net/)
 - [ ] Exportação de TODO para Markdown
 
 ---
