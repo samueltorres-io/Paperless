@@ -6,9 +6,11 @@
 #     curl -fsSL https://github.com/SEU_USUARIO/paperless/releases/latest/download/install.sh | bash
 #
 # Variáveis opcionais:
-#     PAPERLESS_INSTALL_DIR   — onde colocar o binário (padrão: ~/.local/bin)
-#     PAPERLESS_VERSION       — versão específica (padrão: latest)
-#     PAPERLESS_SKIP_OLLAMA   — "1" para não instalar o Ollama
+#     PAPERLESS_INSTALL_DIR     — onde colocar o binário (padrão: ~/.local/bin)
+#     PAPERLESS_VERSION         — versão específica (padrão: latest)
+#     PAPERLESS_SKIP_OLLAMA     — "1" para não instalar o Ollama
+#     PAPERLESS_LOCAL_ARCHIVE   — caminho para um .tar.gz local (pula download)
+#                                 usado pelo CI de instalação
 
 set -euo pipefail
 
@@ -18,6 +20,7 @@ REPO="${PAPERLESS_REPO:-SEU_USUARIO/paperless}"
 INSTALL_DIR="${PAPERLESS_INSTALL_DIR:-$HOME/.local/bin}"
 VERSION="${PAPERLESS_VERSION:-latest}"
 SKIP_OLLAMA="${PAPERLESS_SKIP_OLLAMA:-0}"
+LOCAL_ARCHIVE="${PAPERLESS_LOCAL_ARCHIVE:-}"
 
 # ─────────────────────────── Cores ────────────────────────────
 
@@ -72,33 +75,46 @@ esac
 RID="${PLATFORM}-${RID_ARCH}"
 log "Plataforma detectada: ${BOLD}${RID}${RESET}"
 
-# ──────────────────── Descobrir versão ──────────────────────
-
-if [ "$VERSION" = "latest" ]; then
-    log "Buscando versão mais recente..."
-    VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-        | grep '"tag_name"' \
-        | head -n1 \
-        | sed -E 's/.*"([^"]+)".*/\1/')"
-
-    [ -z "$VERSION" ] && err "Não foi possível descobrir a última release"
-fi
-log "Versão: ${BOLD}${VERSION}${RESET}"
-
-# ───────────────────────── Download ─────────────────────────
+# ───────────────────────── Preparação ───────────────────────
 
 ASSET="paperless-${RID}.tar.gz"
-URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-log "Baixando ${ASSET}..."
-if ! curl -fL --progress-bar "$URL" -o "$TMP/$ASSET"; then
-    err "Falha no download. URL tentada: $URL"
+# ───────────────── Modo: arquivo local OU download ──────────
+
+if [ -n "$LOCAL_ARCHIVE" ]; then
+    [ -f "$LOCAL_ARCHIVE" ] || err "PAPERLESS_LOCAL_ARCHIVE aponta para arquivo inexistente: $LOCAL_ARCHIVE"
+    log "Usando archive local: ${BOLD}${LOCAL_ARCHIVE}${RESET}"
+    cp "$LOCAL_ARCHIVE" "$TMP/$ASSET"
+else
+    # ───────── Descobrir versão
+    if [ "$VERSION" = "latest" ]; then
+        log "Buscando versão mais recente..."
+        VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+            | grep '"tag_name"' \
+            | head -n1 \
+            | sed -E 's/.*"([^"]+)".*/\1/')"
+        [ -z "$VERSION" ] && err "Não foi possível descobrir a última release"
+    fi
+    log "Versão: ${BOLD}${VERSION}${RESET}"
+
+    URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
+    log "Baixando ${ASSET}..."
+    if ! curl -fL --progress-bar "$URL" -o "$TMP/$ASSET"; then
+        err "Falha no download. URL tentada: $URL"
+    fi
 fi
+
+# ───────────────────────── Extração ─────────────────────────
 
 log "Extraindo..."
 tar -xzf "$TMP/$ASSET" -C "$TMP"
+
+# Sanidade: o archive precisa ter o binário
+if [ ! -f "$TMP/paperless" ]; then
+    err "Archive inválido: binário 'paperless' não encontrado após extração"
+fi
 
 # ───────────────────────── Instalação ───────────────────────
 
@@ -106,15 +122,18 @@ mkdir -p "$INSTALL_DIR"
 mv "$TMP/paperless" "$INSTALL_DIR/paperless"
 chmod +x "$INSTALL_DIR/paperless"
 
-# appsettings.json vai para ~/.config/paperless/ se não existir lá,
-# mas o binário lê de AppContext.BaseDirectory — que é onde o binário
-# está.
-if [ -f "$TMP/appsettings.json" ]; then
-    cp "$TMP/appsettings.json" "$INSTALL_DIR/appsettings.json"
-fi
-if [ -f "$TMP/skill.md" ]; then
-    cp "$TMP/skill.md" "$INSTALL_DIR/skill.md"
-fi
+# appsettings.json e skill.md vão junto, mas NÃO sobrescrevem se já
+# existirem — assim o usuário não perde customizações ao atualizar.
+for f in appsettings.json skill.md; do
+    if [ -f "$TMP/$f" ]; then
+        if [ -f "$INSTALL_DIR/$f" ]; then
+            warn "Mantendo $f existente (nova versão em $INSTALL_DIR/$f.new)"
+            cp "$TMP/$f" "$INSTALL_DIR/$f.new"
+        else
+            cp "$TMP/$f" "$INSTALL_DIR/$f"
+        fi
+    fi
+done
 
 ok "Paperless instalado em ${BOLD}${INSTALL_DIR}/paperless${RESET}"
 
@@ -139,16 +158,24 @@ elif command -v ollama >/dev/null 2>&1; then
     ok "Ollama já instalado: $(ollama --version 2>&1 | head -n1)"
 else
     warn "Ollama não encontrado."
-    printf "    Deseja instalar agora? [${BOLD}Y${RESET}/n] "
-    read -r answer </dev/tty || answer=""
 
-    if [[ ! "$answer" =~ ^[Nn]$ ]]; then
-        log "Executando instalador oficial do Ollama..."
-        curl -fsSL https://ollama.com/install.sh | sh
-        ok "Ollama instalado"
+    # Em CI/pipe sem TTY, não dá pra perguntar. Pulamos e avisamos.
+    if [ ! -t 0 ] && [ ! -r /dev/tty ]; then
+        warn "Stdin não é TTY — pulando prompt do Ollama."
+        warn "Instale depois com: curl -fsSL https://ollama.com/install.sh | sh"
     else
-        warn "Pulando. Instale depois com:"
-        printf "        ${BOLD}curl -fsSL https://ollama.com/install.sh | sh${RESET}\n"
+        printf "    Deseja instalar agora? [${BOLD}Y${RESET}/n] "
+        # Lê de /dev/tty para funcionar mesmo dentro de `| bash`
+        read -r answer </dev/tty || answer=""
+
+        if [[ ! "$answer" =~ ^[Nn]$ ]]; then
+            log "Executando instalador oficial do Ollama..."
+            curl -fsSL https://ollama.com/install.sh | sh
+            ok "Ollama instalado"
+        else
+            warn "Pulando. Instale depois com:"
+            printf "        ${BOLD}curl -fsSL https://ollama.com/install.sh | sh${RESET}\n"
+        fi
     fi
 fi
 
