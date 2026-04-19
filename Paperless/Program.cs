@@ -20,8 +20,25 @@ internal class Program
     private const string Danger  = "#EF476F";
     private const string Muted   = "grey62";
 
-    static async Task Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
+
+        if (args.Length > 0)
+        {
+            switch (args[0])
+            {
+                case "--version":
+                case "-v":
+                    PrintVersion();
+                    return 0;
+
+                case "--help":
+                case "-h":
+                    PrintCliHelp();
+                    return 0;
+            }
+        }
+
         Console.OutputEncoding = System.Text.Encoding.UTF8;
 
         /* ══════════════ 1. Configuração ══════════════ */
@@ -54,7 +71,7 @@ internal class Program
             settings.Ollama.Model,
             settings.Ollama.EmbeddingModel);
 
-        if (!await wizard.RunAsync()) return;
+        if (!await wizard.RunAsync()) return 1;
 
         /* ══════════════ 5. Health check do Ollama ══════════════ */
 
@@ -114,6 +131,7 @@ internal class Program
         indexer.Stop();
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"  [{Primary}]Até mais! 👋[/]");
+        return 0;
     }
 
     // ═══════════════════════ REPL ═══════════════════════
@@ -554,6 +572,34 @@ internal class Program
         AnsiConsole.WriteLine();
         AnsiConsole.Write(panel);
         AnsiConsole.WriteLine();
+    }
+
+    private static void PrintVersion()
+    {
+        // Assembly.GetName().Version pega o que foi passado em
+        // -p:Version=... no dotnet publish. Fallback para "dev" quando
+        // rodando via `dotnet run` (nenhuma versão gravada).
+        var asm = typeof(Program).Assembly;
+        var version = asm.GetName().Version;
+
+        // Se veio "0.0.0.0", é porque nada foi setado — exibe "dev".
+        var versionString = (version is null || version.ToString() == "0.0.0.0")
+            ? "dev"
+            : version.ToString(3);
+
+        Console.WriteLine($"paperless {versionString}");
+    }
+
+    private static void PrintCliHelp()
+    {
+        Console.WriteLine("paperless — assistente pessoal 100% offline");
+        Console.WriteLine();
+        Console.WriteLine("Uso:");
+        Console.WriteLine("  paperless              Inicia o REPL interativo");
+        Console.WriteLine("  paperless --version    Mostra a versão");
+        Console.WriteLine("  paperless --help       Mostra esta ajuda");
+        Console.WriteLine();
+        Console.WriteLine("No REPL, use /help para ver os comandos disponíveis.");
     }
 
     // ═══════════════════════ Helpers ═══════════════════════
