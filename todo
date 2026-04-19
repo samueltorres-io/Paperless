@@ -1,16 +1,3 @@
-[x] Documentação (README.md)
-[x] Code Review + Testes:
-    [x] ToDo
-    [x] Ollama
-    [x] Vector
-    [x] File
-    [x] Session
-    [x] Chat
-    [x] AppSettings
-    [x] DataContext
-[x] Update na performance da llm
-[x] Resolver problema da skill não ser chamada
-
 [] Problema ao adicionar um arquivo na pasta 'data' para RAG {
     ❯ [FileIndexer] Erro processando first_invest.txt: The CancellationTokenSource has been disposed.
     [FileIndexer] Erro processando first_invest.txt: The CancellationTokenSource has been disposed.
