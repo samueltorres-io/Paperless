@@ -8,6 +8,7 @@ using Paperless.Modules.File;
 using Paperless.Modules.Ollama;
 using Paperless.Modules.Session;
 using Paperless.Modules.ToDo;
+using Paperless.Modules.Setup;
 using Spectre.Console;
 
 internal class Program
@@ -42,34 +43,26 @@ internal class Program
 
         /* ══════════════ 4. Serviços ══════════════ */
 
-        using var ollamaHttp = new System.Net.Http.HttpClient();
-        var ollama = new OllamaClient(ollamaHttp, settings.Ollama);
+        using var ollamaHttp = new System.Net.Http.HttpClient
+        {
+            Timeout = TimeSpan.FromMinutes(30),
+        };
 
-        var ragModel    = new FileRagModel(settings.Storage.GetFullDatabasePath());
-        var todoRepo    = new TodoRepository(settings.Storage.GetFullTasksPath());
-        var todoManager = new TodoManager(todoRepo);
-        var session     = new SessionManager(ttlMinutes: 10);
+        var bootstrap = new OllamaBootstrap(ollamaHttp, settings.Ollama.BaseUrl);
+        var wizard    = new SetupWizard(
+            bootstrap,
+            settings.Ollama.Model,
+            settings.Ollama.EmbeddingModel);
+
+        if (!await wizard.RunAsync()) return;
 
         /* ══════════════ 5. Health check do Ollama ══════════════ */
 
-        bool healthy = false;
-
-        await AnsiConsole.Status()
-            .Spinner(Spinner.Known.Dots)
-            .SpinnerStyle(Style.Parse($"{Primary} bold"))
-            .StartAsync("Verificando conexão com Ollama...", async _ =>
-            {
-                healthy = await ollama.HealthCheckAsync();
-            });
-
-        if (!healthy)
-        {
-            AnsiConsole.MarkupLine($"  [{Danger}]✗[/] Ollama não está rodando.");
-            AnsiConsole.MarkupLine($"  [{Muted}]Execute [bold]ollama serve[/] e tente novamente.[/]");
-            return;
-        }
-
-        AnsiConsole.MarkupLine($"  [{Accent}]✓[/] Ollama conectado");
+        var ollama = new OllamaClient(ollamaHttp, settings.Ollama);
+        var ragModel = new FileRagModel(settings.Storage.GetFullDatabasePath());
+        var todoRepo = new TodoRepository(settings.Storage.GetFullTasksPath());
+        var todoManager = new TodoManager(todoRepo);
+        var session = new SessionManager(ttlMinutes: 10);
 
         /* ══════════════ 6. System prompt ══════════════ */
 
@@ -299,6 +292,16 @@ internal class Program
             case "/todo":
                 HandleTodoCommand(parts, todo);
                 return Task.FromResult(CommandResult.Handled);
+
+            /*
+            case "/setup":
+                var rerun = new SetupWizard(
+                    bootstrap,
+                    settings.Ollama.Model,
+                    settings.Ollama.EmbeddingModel);
+                await rerun.RunAsync();
+                return CommandResult.Handled;
+            */
 
             default:
                 return Task.FromResult(CommandResult.NotHandled);
